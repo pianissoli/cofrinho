@@ -1,0 +1,5 @@
+ALTER TABLE transfer_state ADD COLUMN staged_payload TEXT;
+CREATE TABLE transfer_receipt (
+    checkpoint_id TEXT NOT NULL PRIMARY KEY,
+    payload_digest TEXT NOT NULL
+);

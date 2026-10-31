@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Caixa — mobile interface preview</title>
+  <style>
+    :root { color-scheme: dark; --page: #101211; --card: #1c201e; --line: #323a35; --text: #f1f4f2; --muted: #a5b2aa; --green: #a7e8b8; --amber: #efca86; --red: #ffaaa4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #090b0a; color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+    button, input, select { font: inherit; }
+    button, a, summary { -webkit-tap-highlight-color: transparent; }
+    button, .button { min-height: 46px; padding: 11px 15px; border: 1px solid var(--line); border-radius: 12px; background: #252c27; color: var(--text); cursor: pointer; text-align: center; text-decoration: none; }
+    button:hover, .button:hover { background: #334238; }
+    button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+    .primary { background: var(--green); border-color: var(--green); color: #122319; font-weight: 700; }
+    .primary:hover { background: #c2f3ce; }
+    .danger { color: var(--red); }
+    .wide { width: 100%; margin-top: 12px; }
+    .preview-banner { max-width: 440px; margin: 24px auto 14px; padding: 0 20px; color: var(--muted); font-size: 12px; }
+    .preview-banner strong { color: var(--green); letter-spacing: .12em; text-transform: uppercase; }
+    .phone { max-width: 440px; min-height: calc(100dvh - 120px); margin: 0 auto 24px; background: var(--page); border: 1px solid var(--line); border-radius: 22px; }
+    .app-header { padding: 22px 22px 12px; display: flex; align-items: center; justify-content: space-between; }
+    .brand { font-size: 25px; font-weight: 750; letter-spacing: -.05em; }
+    .brand span { color: var(--green); }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 7px; font-size: 11px; color: var(--green); background: #24372a; font-weight: 650; }
+    .badge.pending { color: var(--amber); background: #393021; }
+    .badge.neutral { color: var(--muted); background: #2b302d; }
+    main { padding: 8px 20px 112px; }
+    .screen { display: none; scroll-margin-top: 15px; }
+    #overview { display: block; }
+    body:has(.screen:target) #overview { display: none; }
+    body:has(.screen:target) .screen:target { display: block; }
+    h1 { margin: 6px 0 4px; font-size: 24px; letter-spacing: -.04em; }
+    h2 { margin: 0 0 12px; font-size: 17px; letter-spacing: -.02em; }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    p { margin: 0 0 14px; }
+    .muted, small { color: var(--muted); }
+    small { display: block; font-size: 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .row > :first-child { min-width: 0; }
+    .section-head { margin: 24px 0 10px; }
+    .section-head h2 { margin: 0; }
+    .month { margin-bottom: 18px; font-size: 13px; }
+    .month button { min-height: 44px; padding: 8px 12px; font-size: 13px; }
+    .card { margin: 14px 0; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+    .hero { border-color: #415e49; background: #18271d; }
+    .eyebrow { color: var(--muted); font-size: 12px; }
+    .amount { font-size: clamp(30px, 8vw, 38px); font-weight: 700; letter-spacing: -.05em; margin: 2px 0; color: var(--green); }
+    .budget-bar { display: flex; height: 10px; border-radius: 10px; overflow: hidden; margin: 20px 0 14px; background: #34473a; }
+    .budget-bar .spent { width: 16.6667%; background: #d9e1dc; }
+    .budget-bar .reserved { width: 33.3333%; background: var(--amber); }
+    .budget-bar .available { width: 50%; background: var(--green); }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .metrics strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .metrics .reserved-text { color: var(--amber); }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+    .entry { padding: 15px 0; border-bottom: 1px solid var(--line); }
+    .entry:last-child { border-bottom: 0; }
+    .entry p { margin: 0; }
+    .entry strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .entry button { min-height: 44px; margin-top: 10px; padding: 8px 12px; font-size: 13px; }
+    .chart { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; height: 94px; align-items: end; margin-top: 20px; }
+    .chart span { display: block; background: #90b69a; border-radius: 4px 4px 0 0; }
+    .chart-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; text-align: center; color: var(--muted); font-size: 10px; margin-top: 7px; }
+    .note { padding: 12px 14px; background: #242a26; border-radius: 10px; font-size: 13px; color: var(--muted); }
+    .warning { color: var(--amber); background: #30291e; }
+    details { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 10px; }
+    summary { cursor: pointer; padding: 10px 0; min-height: 44px; color: var(--muted); font-size: 13px; }
+    nav { position: fixed; z-index: 3; bottom: 16px; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: repeat(4, 1fr); width: calc(100% - 32px); max-width: 408px; padding: 6px; background: #202622; border: 1px solid #3b453e; border-radius: 16px; box-shadow: 0 4px 25px #0008; }
+    nav a { padding: 13px 3px; border-radius: 10px; color: var(--muted); text-decoration: none; text-align: center; font-size: 12px; font-weight: 650; }
+    body:not(:has(.screen:target)) a[href="#overview"], body:has(#overview:target) a[href="#overview"], body:has(#expenses:target) a[href="#expenses"], body:has(#income:target) a[href="#income"], body:has(#transfer:target) a[href="#transfer"] { background: #34463a; color: var(--green); }
+    [popover] { width: calc(100% - 32px); max-width: 408px; max-height: 88dvh; overflow-y: auto; padding: 24px; border: 1px solid #47544b; border-radius: 20px; background: #1b211d; color: var(--text); box-shadow: 0 20px 80px #0009; }
+    [popover]::backdrop { background: #000b; }
+    .sheet-head { margin-bottom: 18px; }
+    .sheet-head h2 { margin: 0; font-size: 21px; }
+    .close { padding: 6px; min-width: 44px; font-size: 24px; background: transparent; border: 0; }
+    label { display: block; color: var(--muted); font-size: 13px; margin: 14px 0 6px; }
+    input, select { width: 100%; min-height: 48px; padding: 12px; border: 1px solid #4a574e; border-radius: 10px; background: #101612; color: var(--text); }
+    input[type="file"] { font-size: 12px; }
+    fieldset { padding: 0; margin: 18px 0 0; border: 0; }
+    legend { color: var(--muted); font-size: 13px; }
+    .payment { display: flex; gap: 10px; }
+    .payment label { flex: 1; padding: 12px; margin-top: 8px; border: 1px solid #4a574e; border-radius: 10px; color: var(--text); }
+    .payment label:has(:checked) { background: #2d4333; border-color: var(--green); }
+    .payment input { width: 16px; min-height: auto; accent-color: var(--green); margin-right: 6px; }
+    .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
+    .comparison .card { margin: 0; padding: 12px; }
+    .comparison strong { display: block; margin-top: 8px; }
+    .comparison small { margin-top: 5px; }
+    @media (max-width: 480px) { .preview-banner { margin-top: 14px; } .phone { border: 0; border-radius: 0; margin-bottom: 0; } nav { bottom: 8px; } }
+  </style>
+</head>
+<body>
+  <aside class="preview-banner"><strong>Caixa · interface preview</strong><br>Tap the tabs and buttons. Sample BRL amounts; October 26, 2026. New-entry dates use your local today. Forms are illustrative and nothing is saved. Open in a recent browser.</aside>
+  <div class="phone">
+    <header class="app-header"><div class="brand">caixa<span>.</span></div><span class="badge">Offline · on this device</span></header>
+    <main>
+      <section class="screen" id="overview" aria-labelledby="overview-title">
+        <h1 id="overview-title">Your month, at a glance.</h1>
+        <div class="row month"><span class="muted">A little clarity for everyday spending.</span><button popovertarget="month-picker">Oct 2026 ▾</button></div>
+        <div class="card hero">
+          <div class="eyebrow">Available after planned expenses</div><div class="amount">R$ 1,500.00</div><small>From a planned income of R$ 3,000.00</small>
+          <div class="budget-bar" role="img" aria-label="Budget: 16.7 percent spent, 33.3 percent reserved, 50 percent available"><span class="spent"></span><span class="reserved"></span><span class="available"></span></div>
+          <div class="metrics"><div><small>Already spent · 16.7%</small><strong>R$ 500.00</strong></div><div><small>Reserved for plans</small><strong class="reserved-text">R$ 1,000.00</strong></div></div>
+          <details><summary>How this is calculated</summary><small>R$ 3,000 income − R$ 500 spent − R$ 1,000 planned = R$ 1,500 available.<br>Remaining before reservations: R$ 2,500. This is a budget, not your bank balance.</small></details>
+        </div>
+        <div class="actions"><button class="primary" popovertarget="new-expense">+ Add expense</button><button popovertarget="new-plan">+ Plan expense</button></div>
+        <div class="section-head row"><h2>Coming up</h2><a class="button" href="#expenses">See all</a></div>
+        <div class="entry"><div class="row"><div><p>Internet <span class="badge pending">Overdue</span></p><small>Expected Oct 25 · Credit</small></div><strong>R$ 100.00</strong></div><small>Still reserved. Record it when the charge happens.</small><button popovertarget="internet-plan">Review plan</button></div>
+        <div class="entry"><div class="row"><div><p>Rent</p><small>Expected Oct 28 · Credit</small></div><strong>R$ 900.00</strong></div><button popovertarget="rent-plan">Review plan</button></div>
+        <div class="card"><div class="row"><h2>Daily spending</h2><small>Oct 20–26</small></div>
+          <div class="chart" role="img" aria-label="Oct 20: 20 reais; 21: zero; 22: 150; 23: zero; 24: 50; 25: 280; 26: zero. Total 500 reais."><span style="height:7.14%"></span><span style="height:2px"></span><span style="height:53.57%"></span><span style="height:2px"></span><span style="height:17.86%"></span><span style="height:100%"></span><span style="height:2px"></span></div>
+          <div class="chart-labels" aria-hidden="true"><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span></div>
+          <div class="row" style="margin-top:18px"><small>Credit · R$ 220.00</small><small>Debit · R$ 280.00</small></div>
+        </div>
+        <details><summary>Preview other budget states</summary><div class="note warning"><strong>No budget defined</strong><br>Spent R$ 500 · Reserved R$ 1,000<br>Available −R$ 1,500. Add income to define your budget.</div><div class="note warning" style="margin-top:10px"><strong>Plans exceed your budget</strong><br>Income R$ 3,000 − spent R$ 500 − reserved R$ 2,800 = available −R$ 300.</div></details>
+      </section>
+      <section class="screen" id="expenses" aria-labelledby="expenses-title">
+        <div class="row"><h1 id="expenses-title">Expenses</h1><button popovertarget="month-picker">Oct 2026 ▾</button></div><p class="muted">What happened. What is still ahead.</p>
+        <div class="actions"><button class="primary" popovertarget="new-expense">+ Add expense</button><button popovertarget="new-plan">+ Plan expense</button></div>
+        <div class="section-head row"><h2>Planned</h2><small>R$ 1,000 reserved</small></div>
+        <div class="entry"><div class="row"><div><p>Internet <span class="badge pending">Overdue</span></p><small>Oct 25 · Credit</small></div><strong>R$ 100.00</strong></div><button popovertarget="internet-plan">Record or reschedule</button></div>
+        <div class="entry"><div class="row"><div><p>Rent <span class="badge pending">Planned</span></p><small>Oct 28 · Credit</small></div><strong>R$ 900.00</strong></div><button popovertarget="rent-plan">Record or edit</button></div>
+        <div class="section-head row"><h2>Recorded</h2><small>R$ 500 spent</small></div>
+        <div class="entry"><div class="row"><div><p>Utilities <span class="badge neutral">From a plan</span></p><small>Oct 25 · Debit</small></div><strong>R$ 280.00</strong></div><button popovertarget="utilities-edit">Edit or remove</button></div>
+        <div class="entry"><div class="row"><div><p>Transport</p><small>Oct 24 · Credit</small></div><strong>R$ 50.00</strong></div></div>
+        <div class="entry"><div class="row"><div><p>Groceries</p><small>Oct 22 · Credit</small></div><strong>R$ 150.00</strong></div><button popovertarget="groceries-edit">Edit or remove</button></div>
+        <div class="entry"><div class="row"><div><p>Coffee with friends</p><small>Oct 20 · Credit</small></div><strong>R$ 20.00</strong></div></div>
+        <details><summary>Cancelled plans · 1</summary><div class="row"><div>Gym trial<small>Oct 24 · No budget reserved</small></div><s class="muted">R$ 80.00</s></div></details>
+      </section>
+      <section class="screen" id="income" aria-labelledby="income-title">
+        <div class="row"><h1 id="income-title">Income</h1><button popovertarget="month-picker">Oct 2026 ▾</button></div><p class="muted">Give your month a starting point.</p>
+        <div class="card hero"><small>Planned income this month</small><div class="amount">R$ 3,000.00</div><small>Recurring sources automatically define every month’s budget.</small></div>
+        <button class="primary wide" popovertarget="new-income">+ Add income source</button>
+        <div class="entry"><div class="row"><div><p>Salary</p><small>Repeats monthly · Started October 2026</small></div><strong>R$ 2,500.00</strong></div><button popovertarget="salary-edit">Edit source or amount</button></div>
+        <div class="entry"><div class="row"><div><p>Freelance</p><small>Repeats monthly · Started October 2026</small></div><strong>R$ 500.00</strong></div><button popovertarget="freelance-edit">Edit source or amount</button></div>
+        <p class="note" style="margin-top:16px">Register once. Your monthly budget includes these sources automatically until you change or stop them. One-month overrides handle exceptions.</p>
+        <details><summary>Archived sources · 1</summary><p>Weekend job<small>Stopped from October · Earlier monthly budgets are kept.</small></p></details>
+      </section>
+      <section class="screen" id="transfer" aria-labelledby="transfer-title">
+        <h1 id="transfer-title">Move your ledger</h1><p class="muted">Continue on your computer. Bring it back later.</p>
+        <div class="card"><span class="badge">Editing on this phone</span><p style="margin-top:12px">Your changes stay on this device until you export.</p><small>Last import: Oct 25, 18:42 · From computer</small></div>
+        <button class="primary wide" popovertarget="export-preview">Export to another device</button><button class="wide" popovertarget="import-file">Import from another device</button>
+        <div class="card"><h2>A simple round trip</h2><p>1. Export a ledger file.<br>2. Move it using USB or file sharing.<br>3. Import it on your computer.<br>4. Export back when you are finished.</p><small>Works offline. No account needed. Future iOS uses the same file.</small></div>
+        <p class="note warning">Exported files have no password. Anyone with the file can read its financial information.</p>
+        <details open><summary>Preview transfer situations</summary><button class="wide" popovertarget="conflict-preview">Conflicting changes</button><button class="wide" popovertarget="handoff-preview">Editing handed off</button><button class="wide" popovertarget="recovery-preview">Backups and recovery</button><button class="wide" popovertarget="transfer-errors">Duplicate or invalid import</button></details>
+      </section>
+    </main>
+    <nav aria-label="Main screens"><a href="#overview">Overview</a><a href="#expenses">Expenses</a><a href="#income">Income</a><a href="#transfer">Transfer</a></nav>
+  </div>
+
+  <div id="new-expense" data-today-on-open popover role="dialog" aria-labelledby="new-expense-title">
+    <div class="row sheet-head"><h2 id="new-expense-title">Add expense</h2><button class="close" popovertarget="new-expense" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <label for="expense-amount">Amount · BRL</label><input id="expense-amount" type="number" min="0.01" step="0.01" placeholder="0.00" inputmode="decimal" autofocus>
+    <label for="expense-note">Description · optional</label><input id="expense-note" placeholder="What was it for?">
+    <label for="expense-date">Purchase date · defaults to today</label><input id="expense-date" type="date" data-default-today>
+    <fieldset><legend>Payment method</legend><div class="payment"><label><input type="radio" name="new-payment" value="credit" checked>Credit</label><label><input type="radio" name="new-payment" value="debit">Debit</label></div></fieldset>
+    <small style="margin-top:12px">Both payment methods reduce your budget now.</small><button class="primary wide" popovertarget="preview-notice">Save expense</button>
+  </div>
+  <div id="new-plan" data-today-on-open popover role="dialog" aria-labelledby="new-plan-title">
+    <div class="row sheet-head"><h2 id="new-plan-title">Plan an expense</h2><button class="close" popovertarget="new-plan" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <p class="muted">Set money aside before the expense happens.</p><label for="plan-amount">Expected amount · BRL</label><input id="plan-amount" type="number" min="0.01" step="0.01" placeholder="0.00" inputmode="decimal" autofocus>
+    <label for="plan-note">Description · optional</label><input id="plan-note" placeholder="Rent, a bill, a purchase…"><label for="plan-date">Expected date</label><input id="plan-date" type="date" data-default-today>
+    <fieldset><legend>Expected payment method</legend><div class="payment"><label><input type="radio" name="plan-payment" checked>Credit</label><label><input type="radio" name="plan-payment">Debit</label></div></fieldset>
+    <p class="note" style="margin-top:16px">Reserved in the expected month. It becomes spending only when you record the actual expense.</p><button class="primary wide" popovertarget="preview-notice">Reserve budget</button>
+  </div>
+  <div id="rent-plan" popover role="dialog" aria-labelledby="rent-title">
+    <div class="row sheet-head"><h2 id="rent-title">Rent <span class="badge pending">Planned</span></h2><button class="close" popovertarget="rent-plan" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <label for="rent-amount">Expected amount · BRL</label><input id="rent-amount" type="number" value="900" min="0.01" step="0.01"><label for="rent-date">Expected date · change to reschedule</label><input id="rent-date" type="date" value="2026-10-28">
+    <label for="rent-payment">Payment method</label><select id="rent-payment"><option>Credit</option><option>Debit</option></select><small style="margin-top:12px">R$ 900.00 is reserved in October.</small>
+    <button class="primary wide" popovertarget="record-rent">Record actual expense</button><button class="wide" popovertarget="preview-notice">Save changes</button><button class="wide danger" popovertarget="cancel-plan">Cancel plan</button>
+  </div>
+  <div id="record-rent" data-today-on-open popover role="dialog" aria-labelledby="record-title">
+    <div class="row sheet-head"><h2 id="record-title">Record rent</h2><button class="close" popovertarget="record-rent" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <p class="muted">Confirm the actual charge. Your reservation will be released.</p><label for="actual-rent">Actual amount · BRL</label><input id="actual-rent" type="number" value="900" min="0.01" step="0.01"><label for="actual-rent-date">Actual purchase date</label><input id="actual-rent-date" type="date" data-default-today>
+    <fieldset><legend>Payment method</legend><div class="payment"><label><input type="radio" name="rent-record-payment" checked>Credit</label><label><input type="radio" name="rent-record-payment">Debit</label></div></fieldset><p class="note" style="margin-top:16px">At R$ 900: spent becomes R$ 1,400, reserved becomes R$ 100, available stays R$ 1,500.</p><button class="primary wide" popovertarget="preview-notice">Record expense</button>
+  </div>
+  <div id="internet-plan" data-today-on-open popover role="dialog" aria-labelledby="internet-title">
+    <div class="row sheet-head"><h2 id="internet-title">Internet <span class="badge pending">Overdue</span></h2><button class="close" popovertarget="internet-plan" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <p class="muted">Expected Oct 25. Still reserved, not automatically spent.</p><label for="internet-amount">Amount · BRL</label><input id="internet-amount" type="number" value="100" min="0.01" step="0.01"><label for="internet-date">Expected date · change to reschedule</label><input id="internet-date" type="date" value="2026-10-25">
+    <label for="internet-actual">Actual date · when recording</label><input id="internet-actual" type="date" data-default-today><label for="internet-payment">Payment method</label><select id="internet-payment"><option>Credit</option><option>Debit</option></select>
+    <button class="primary wide" popovertarget="preview-notice">Record actual expense</button><button class="wide" popovertarget="preview-notice">Save rescheduled plan</button><button class="wide danger" popovertarget="preview-notice">Cancel plan · release R$ 100</button>
+  </div>
+  <div id="cancel-plan" popover role="dialog" aria-labelledby="cancel-title">
+    <div class="row sheet-head"><h2 id="cancel-title">Cancel rent plan?</h2><button class="close" popovertarget="cancel-plan" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <p>Release the R$ 900 reservation. Available budget becomes R$ 2,400. Recorded spending stays unchanged.</p><small>The plan stays in your cancelled history.</small><button class="wide danger" popovertarget="preview-notice">Cancel plan</button><button class="wide" popovertarget="rent-plan">Keep plan</button>
+  </div>
+  <div id="groceries-edit" popover role="dialog" aria-labelledby="groceries-title">
+    <div class="row sheet-head"><h2 id="groceries-title">Edit groceries</h2><button class="close" popovertarget="groceries-edit" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <label for="groceries-amount">Amount · BRL</label><input id="groceries-amount" type="number" value="150" min="0.01" step="0.01"><label for="groceries-date">Purchase date</label><input id="groceries-date" type="date" value="2026-10-22"><label for="groceries-method">Payment method</label><select id="groceries-method"><option>Credit</option><option>Debit</option></select>
+    <button class="primary wide" popovertarget="preview-notice">Save changes</button><button class="wide danger" popovertarget="delete-expense">Delete expense</button>
+  </div>
+  <div id="delete-expense" popover role="dialog" aria-labelledby="delete-title">
+    <div class="row sheet-head"><h2 id="delete-title">Delete groceries?</h2><button class="close" popovertarget="delete-expense" popovertargetaction="hide" aria-label="Close">×</button></div><p>This removes R$ 150 from recorded spending. Available budget becomes R$ 1,650.</p><button class="wide danger" popovertarget="preview-notice">Delete expense</button><button class="wide" popovertarget="groceries-edit">Keep expense</button>
+  </div>
+  <div id="utilities-edit" popover role="dialog" aria-labelledby="utilities-title">
+    <div class="row sheet-head"><h2 id="utilities-title">Edit utilities</h2><button class="close" popovertarget="utilities-edit" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <label for="utilities-amount">Recorded amount · BRL</label><input id="utilities-amount" type="number" value="280" min="0.01" step="0.01"><label for="utilities-date">Purchase date</label><input id="utilities-date" type="date" value="2026-10-25"><label for="utilities-method">Payment method</label><select id="utilities-method"><option>Credit</option><option selected>Debit</option></select>
+    <button class="primary wide" popovertarget="preview-notice">Save changes</button><button class="wide danger" popovertarget="reopen-plan">Remove recorded expense</button>
+  </div>
+  <div id="reopen-plan" popover role="dialog" aria-labelledby="reopen-title">
+    <div class="row sheet-head"><h2 id="reopen-title">Keep the reservation?</h2><button class="close" popovertarget="reopen-plan" popovertargetaction="hide" aria-label="Close">×</button></div><p>Utilities came from a plan. Removing the charge can reopen that plan or release the money entirely.</p>
+    <label for="reopen-amount">Expected amount if reopened · BRL</label><input id="reopen-amount" type="number" value="280" min="0.01" step="0.01"><label for="reopen-date">Expected date if reopened</label><input id="reopen-date" type="date" value="2026-10-28"><button class="wide" popovertarget="preview-notice">Remove charge and reopen plan</button><button class="wide danger" popovertarget="preview-notice">Remove without reservation</button>
+  </div>
+  <div id="new-income" data-today-on-open popover role="dialog" aria-labelledby="new-income-title">
+    <div class="row sheet-head"><h2 id="new-income-title">Add income source</h2><button class="close" popovertarget="new-income" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <label for="source-name">Source name</label><input id="source-name" placeholder="Salary, freelance…" autofocus><label for="source-amount">Monthly amount · BRL</label><input id="source-amount" type="number" min="0.01" step="0.01" placeholder="0.00"><label for="source-frequency">Repeat</label><select id="source-frequency"><option selected>Every month</option><option>This month only</option></select><label for="source-month">Starting month</label><input id="source-month" type="month" data-default-today><small style="margin-top:12px">Every month from this starting month. No repeated entry needed. Expected income does not confirm a bank deposit.</small><button class="primary wide" popovertarget="preview-notice">Register income source</button>
+  </div>
+  <div id="salary-edit" popover role="dialog" aria-labelledby="salary-title">
+    <div class="row sheet-head"><h2 id="salary-title">Salary</h2><button class="close" popovertarget="salary-edit" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <label for="salary-name">Source name</label><input id="salary-name" value="Salary"><label for="salary-amount">Recurring monthly amount · BRL</label><input id="salary-amount" type="number" value="2500" min="0.01" step="0.01"><label for="salary-start">Change effective from</label><input id="salary-start" type="month" value="2026-11"><small style="margin-top:12px">Earlier months keep their previous amount.</small><button class="primary wide" popovertarget="preview-notice">Change this and future months</button><button class="wide" popovertarget="income-override">Change October only</button><button class="wide" popovertarget="archive-source">Archive source</button>
+  </div>
+  <div id="freelance-edit" popover role="dialog" aria-labelledby="freelance-title">
+    <div class="row sheet-head"><h2 id="freelance-title">Freelance</h2><button class="close" popovertarget="freelance-edit" popovertargetaction="hide" aria-label="Close">×</button></div>
+    <label for="freelance-name">Source name</label><input id="freelance-name" value="Freelance"><label for="freelance-amount">Recurring monthly amount · BRL</label><input id="freelance-amount" type="number" value="500" min="0.01" step="0.01"><label for="freelance-start">Change effective from</label><input id="freelance-start" type="month" value="2026-11"><button class="primary wide" popovertarget="preview-notice">Change this and future months</button><small style="margin-top:12px">The Salary sheet also previews a one-month override and stopping recurrence.</small>
+  </div>
+  <div id="income-override" popover role="dialog" aria-labelledby="income-override-title">
+    <div class="row sheet-head"><h2 id="income-override-title">Salary · October only</h2><button class="close" popovertarget="income-override" popovertargetaction="hide" aria-label="Close">×</button></div><label for="override-amount">October amount · BRL</label><input id="override-amount" type="number" value="2500" min="0" step="0.01"><p class="note" style="margin-top:14px">This replaces October’s recurring amount only. Set zero to skip October. November and later months keep the recurring schedule.</p><button class="primary wide" popovertarget="preview-notice">Save October exception</button><button class="wide" popovertarget="preview-notice">Clear exception · use recurring amount</button>
+  </div>
+  <div id="archive-source" popover role="dialog" aria-labelledby="archive-title">
+    <div class="row sheet-head"><h2 id="archive-title">Archive salary?</h2><button class="close" popovertarget="archive-source" popovertargetaction="hide" aria-label="Close">×</button></div><label for="salary-stop">Stop income from</label><input id="salary-stop" type="month" value="2026-11"><p style="margin-top:14px">Salary stops contributing from November. October and earlier budgets stay unchanged. Schedules and history are kept.</p><button class="wide" popovertarget="preview-notice">Stop and archive source</button>
+  </div>
+  <div id="month-picker" popover role="dialog" aria-labelledby="month-title">
+    <div class="row sheet-head"><h2 id="month-title">Choose a month</h2><button class="close" popovertarget="month-picker" popovertargetaction="hide" aria-label="Close">×</button></div><label for="budget-month">Budget month</label><input id="budget-month" type="month" value="2026-10"><p class="muted" style="margin-top:14px">Recurring income is included automatically. Spending and reservations belong to their own months.</p><button class="primary wide" popovertarget="preview-notice">View month</button>
+  </div>
+  <div id="export-preview" popover role="dialog" aria-labelledby="export-title">
+    <div class="row sheet-head"><h2 id="export-title">Export your ledger</h2><button class="close" popovertarget="export-preview" popovertargetaction="hide" aria-label="Close">×</button></div><p><strong>Personal ledger · BRL</strong><br>2 recurring income sources · 4 recorded expenses<br>2 plans · 1 cancelled plan</p><p class="muted">The file includes recurring schedules, monthly overrides, and all months. Save it somewhere you can access from your computer.</p><p class="note">After export, this phone enters read-only mode until the ledger returns. You can still view reports.</p><p class="note warning">No password. The file contains readable financial details.</p><button class="primary wide" popovertarget="handoff-preview">Preview completed handoff</button>
+  </div>
+  <div id="handoff-preview" popover role="dialog" aria-labelledby="handoff-title">
+    <div class="row sheet-head"><h2 id="handoff-title">Editing handed off</h2><button class="close" popovertarget="handoff-preview" popovertargetaction="hide" aria-label="Close">×</button></div><span class="badge pending">Read-only state preview</span><p style="margin-top:14px">Your reports remain available. Continue editing on the computer, then import its export here.</p><button class="primary wide" popovertarget="import-file">Import returned ledger</button><button class="wide" popovertarget="preview-notice">Retry saving the same export</button><button class="wide" popovertarget="resume-editing">Resume editing here</button>
+  </div>
+  <div id="resume-editing" popover role="dialog" aria-labelledby="resume-title">
+    <div class="row sheet-head"><h2 id="resume-title">Resume on this phone?</h2><button class="close" popovertarget="resume-editing" popovertargetaction="hide" aria-label="Close">×</button></div><p class="note warning">The computer may already have an independent copy. If both devices change, you will need to choose which version to keep.</p><button class="primary wide" popovertarget="preview-notice">Resume editing here</button><button class="wide" popovertarget="handoff-preview">Stay read-only</button>
+  </div>
+  <div id="import-file" popover role="dialog" aria-labelledby="import-title">
+    <div class="row sheet-head"><h2 id="import-title">Import a ledger</h2><button class="close" popovertarget="import-file" popovertargetaction="hide" aria-label="Close">×</button></div><label for="ledger-file">Select a .caixa file</label><input id="ledger-file" type="file" accept=".caixa"><small style="margin-top:12px">This preview does not read the selected file. Use the example below to inspect the next screen.</small><button class="primary wide" popovertarget="import-preview">Preview example import</button>
+  </div>
+  <div id="import-preview" popover role="dialog" aria-labelledby="import-preview-title">
+    <div class="row sheet-head"><h2 id="import-preview-title">Review incoming ledger</h2><button class="close" popovertarget="import-preview" popovertargetaction="hide" aria-label="Close">×</button></div><p>Personal ledger · BRL<br><small>From computer · October 2026 summary</small></p><div class="card"><div class="row"><span>Planned income</span><strong>R$ 3,000</strong></div><div class="row"><span>Spent</span><strong>R$ 520</strong></div><div class="row"><span>Reserved</span><strong>R$ 1,000</strong></div><div class="row"><span>Available</span><strong>R$ 1,480</strong></div></div><p>Groceries changed from R$ 150 to R$ 170. Everything else is unchanged.</p><small>Replaces this device's financial records across all months. A backup is created before applying changes.</small><button class="primary wide" popovertarget="preview-notice">Import this version</button><button class="wide" popovertarget="conflict-preview">Preview a conflicting import</button>
+  </div>
+  <div id="conflict-preview" popover role="dialog" aria-labelledby="conflict-title">
+    <div class="row sheet-head"><h2 id="conflict-title">Two versions need review</h2><button class="close" popovertarget="conflict-preview" popovertargetaction="hide" aria-label="Close">×</button></div><p class="note warning">Both devices changed since the last transfer. Nothing will be replaced until you decide.</p><div class="comparison"><div class="card"><h3>This phone</h3><small>Groceries</small><strong>R$ 150</strong><small>Available: R$ 1,500</small></div><div class="card"><h3>Computer</h3><small>Groceries</small><strong>R$ 170</strong><small>Available: R$ 1,480</small></div></div><p>All other records match in this example.</p><small>You choose one complete ledger, across all months. Changes unique to the other version are excluded. A recoverable backup of both versions will be kept.</small><button class="wide" popovertarget="preview-notice">Keep this phone's version</button><button class="wide" popovertarget="preview-notice">Use the computer's version</button><button class="wide" popovertarget="conflict-preview" popovertargetaction="hide">Cancel import</button>
+  </div>
+  <div id="recovery-preview" popover role="dialog" aria-labelledby="recovery-title">
+    <div class="row sheet-head"><h2 id="recovery-title">Backups and recovery</h2><button class="close" popovertarget="recovery-preview" popovertargetaction="hide" aria-label="Close">×</button></div><label for="backup-version">Choose a saved version</label><select id="backup-version"><option>Oct 25, 18:42 · Before import</option><option>Oct 24, 09:15 · Phone export</option></select><p class="muted" style="margin-top:14px">Review a backup in a new working copy before deciding what to keep. Your current ledger remains recoverable.</p><button class="wide" popovertarget="preview-notice">Open backup as a new copy</button>
+  </div>
+  <div id="transfer-errors" popover role="dialog" aria-labelledby="errors-title">
+    <div class="row sheet-head"><h2 id="errors-title">Import status examples</h2><button class="close" popovertarget="transfer-errors" popovertargetaction="hide" aria-label="Close">×</button></div><div class="card"><h3>Already imported</h3><small>This exact file was imported before. No records were added or changed.</small></div><div class="card"><h3>Cannot import this file</h3><small>Currency USD does not match this ledger's expected BRL. Your current ledger is unchanged.</small></div><div class="card"><h3>Export interrupted</h3><small>Your staged export is safe. Retry saving the same file.</small></div><button class="wide" popovertarget="handoff-preview">Preview retry</button>
+  </div>
+  <div id="preview-notice" popover role="dialog" aria-labelledby="notice-title">
+    <div class="row sheet-head"><h2 id="notice-title">Preview only</h2><button class="close" popovertarget="preview-notice" popovertargetaction="hide" aria-label="Close">×</button></div><p>This shows where the action would finish. No money, files, or records were changed.</p><small>Displayed totals are fixed examples and do not recalculate when you edit a field.</small><button class="primary wide" popovertarget="preview-notice" popovertargetaction="hide">Continue exploring</button>
+  </div>
+  <script src="mobile-preview.js"></script>
+</body>
+</html>

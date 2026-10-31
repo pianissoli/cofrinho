@@ -1,0 +1,4 @@
+<full-backup-content>
+    <exclude domain="database" path="caixa.sqlite" />
+    <exclude domain="file" path="backups" />
+</full-backup-content>

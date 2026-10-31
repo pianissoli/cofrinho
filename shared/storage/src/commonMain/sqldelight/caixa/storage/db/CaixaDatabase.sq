@@ -1,0 +1,133 @@
+CREATE TABLE ledger_metadata (
+    ledger_id TEXT NOT NULL PRIMARY KEY,
+    currency_code TEXT NOT NULL,
+    currency_scale INTEGER NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE income_source (
+    source_id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    stopped_from_month TEXT
+);
+
+CREATE TABLE income_schedule (
+    schedule_id TEXT NOT NULL PRIMARY KEY,
+    source_id TEXT NOT NULL REFERENCES income_source(source_id),
+    starts_month TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+    UNIQUE(source_id, starts_month)
+);
+
+CREATE TABLE income_override (
+    override_id TEXT NOT NULL PRIMARY KEY,
+    source_id TEXT NOT NULL REFERENCES income_source(source_id),
+    budget_month TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL CHECK(amount_minor >= 0),
+    UNIQUE(source_id, budget_month)
+);
+
+CREATE TABLE expense (
+    expense_id TEXT NOT NULL PRIMARY KEY,
+    amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+    status TEXT NOT NULL CHECK(status IN ('PLANNED', 'RECORDED', 'CANCELLED')),
+    expected_on TEXT,
+    occurred_on TEXT,
+    payment_method TEXT NOT NULL CHECK(payment_method IN ('CREDIT', 'DEBIT')),
+    description TEXT,
+    CHECK(
+        (status IN ('PLANNED', 'CANCELLED') AND expected_on IS NOT NULL AND occurred_on IS NULL)
+        OR (status = 'RECORDED' AND occurred_on IS NOT NULL)
+    )
+);
+
+CREATE TABLE transfer_state (
+    state_id INTEGER NOT NULL PRIMARY KEY CHECK(state_id = 1),
+    checkpoint_id TEXT,
+    parent_checkpoint_id TEXT,
+    payload_digest TEXT,
+    handed_off INTEGER NOT NULL DEFAULT 0 CHECK(handed_off IN (0, 1)),
+    staged_payload TEXT
+);
+
+CREATE TABLE backup_receipt (
+    backup_id TEXT NOT NULL PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('DAILY', 'PRE_OPERATION', 'CONFLICT')),
+    path TEXT NOT NULL,
+    pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0, 1))
+);
+
+CREATE TABLE transfer_receipt (
+    checkpoint_id TEXT NOT NULL PRIMARY KEY,
+    payload_digest TEXT NOT NULL
+);
+
+CREATE INDEX expense_expected_on_index ON expense(expected_on);
+CREATE INDEX expense_occurred_on_index ON expense(occurred_on);
+CREATE INDEX income_schedule_starts_month_index ON income_schedule(starts_month);
+CREATE INDEX income_override_budget_month_index ON income_override(budget_month);
+
+selectLedger:
+SELECT ledger_id, currency_code, currency_scale, revision FROM ledger_metadata;
+
+selectSources:
+SELECT source_id, name, stopped_from_month FROM income_source;
+
+selectSchedules:
+SELECT schedule_id, source_id, starts_month, amount_minor FROM income_schedule;
+
+selectOverrides:
+SELECT override_id, source_id, budget_month, amount_minor FROM income_override;
+
+selectExpenses:
+SELECT expense_id, amount_minor, status, expected_on, occurred_on, payment_method, description FROM expense;
+
+selectTransferState:
+SELECT checkpoint_id, parent_checkpoint_id, payload_digest, revision, handed_off, staged_payload
+FROM transfer_state WHERE state_id = 1;
+
+deleteTransferState:
+DELETE FROM transfer_state;
+
+insertTransferState:
+INSERT INTO transfer_state(state_id, checkpoint_id, parent_checkpoint_id, payload_digest, revision, handed_off, staged_payload)
+VALUES (1, ?, ?, ?, ?, ?, ?);
+
+deleteExpenses:
+DELETE FROM expense;
+
+deleteOverrides:
+DELETE FROM income_override;
+
+deleteSchedules:
+DELETE FROM income_schedule;
+
+deleteSources:
+DELETE FROM income_source;
+
+deleteLedgerMetadata:
+DELETE FROM ledger_metadata;
+
+insertLedger:
+INSERT INTO ledger_metadata(ledger_id, currency_code, currency_scale, revision)
+VALUES (?, ?, ?, ?);
+
+insertSource:
+INSERT INTO income_source(source_id, name, stopped_from_month) VALUES (?, ?, ?);
+
+insertSchedule:
+INSERT INTO income_schedule(schedule_id, source_id, starts_month, amount_minor) VALUES (?, ?, ?, ?);
+
+insertOverride:
+INSERT INTO income_override(override_id, source_id, budget_month, amount_minor) VALUES (?, ?, ?, ?);
+
+insertExpense:
+INSERT INTO expense(expense_id, amount_minor, status, expected_on, occurred_on, payment_method, description)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectTransferReceipts:
+SELECT checkpoint_id, payload_digest FROM transfer_receipt;
+
+insertTransferReceipt:
+INSERT OR REPLACE INTO transfer_receipt(checkpoint_id, payload_digest) VALUES (?, ?);
