@@ -17,8 +17,6 @@ build/
 *.sqlite
 *.sqlite-*
 *.cofrinho
-# Keep pre-rename financial exports private.
-*.caixa
 backups/
 
 # Local machine settings and signing credentials must remain private.

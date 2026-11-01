@@ -17,6 +17,4 @@ keystore.properties
 **/*.sqlite
 **/*.sqlite-*
 **/*.cofrinho
-# Keep pre-rename financial exports out of the build context.
-**/*.caixa
 **/backups
