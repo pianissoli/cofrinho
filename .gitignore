@@ -16,6 +16,8 @@ build/
 # Financial records and recovery copies belong to the user.
 *.sqlite
 *.sqlite-*
+*.cofrinho
+# Keep pre-rename financial exports private.
 *.caixa
 backups/
 

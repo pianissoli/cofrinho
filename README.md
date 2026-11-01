@@ -1,4 +1,4 @@
-# Caixa
+# Cofrinho
 
 Offline-first personal budget ledger. The first release targets Android 16
 (API 36) with a signed APK and Linux x86_64 for the desktop CLI.
@@ -7,7 +7,7 @@ Offline-first personal budget ledger. The first release targets Android 16
 
 - `shared/finance`: platform-neutral money, date, recurring-income, planned-
   expense, and budget rules.
-- `shared/transfer`: versioned `.caixa` JSON snapshots and import validation.
+- `shared/transfer`: versioned `.cofrinho` JSON snapshots and import validation.
 - `shared/storage`: SQLDelight schema for the phone and desktop SQLite stores.
 - `apps/cli`: Linux-oriented Kotlin/JVM CLI with SQLite persistence, handoff,
   conflict choice, and local backup policy.
@@ -45,24 +45,24 @@ inside the image, available when the source directory is mounted over it.
 Build the toolchain image, then run tests and create a development APK:
 
 ```bash
-docker build --tag caixa-build .
+docker build --tag cofrinho-build .
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  caixa-build check :apps:android:assembleDebug
+  cofrinho-build check :apps:android:assembleDebug
 ```
 
 The bind mount keeps build outputs on the host. Running with the host user's
 UID/GID keeps those files owned by that user. Downloads are cached in the
 ignored `.gradle-docker/` directory. The APK is written to
-`apps/android/build/outputs/apk/debug/android-debug.apk` and is signed with a
+`apps/android/build/outputs/apk/debug/cofrinho-debug.apk` and is signed with a
 development key, not the permanent release key. Android's development keystore
 is retained in the ignored `.android-docker/` directory between container runs.
 
 To inspect the toolchain without compiling the application:
 
 ```bash
-docker run --rm caixa-build --version
+docker run --rm cofrinho-build --version
 ```
 
 Direct `./gradlew check` is also available after exporting the wrapper, but
@@ -71,6 +71,11 @@ separate system Gradle installation is needed. APK installation and upgrade
 checks still need an Android 16+ phone or an emulator.
 
 ## Release builds
+
+Use a PKCS#12 (`.p12`) signing keystore and `storeType=PKCS12` in the local
+signing configuration. The [Android signing guide](docs/release/android-signing.md)
+explains how to convert an existing JKS without changing the signing identity,
+verify the certificate, and update the GitHub Actions secrets.
 
 Release signing is supplied through an uncommitted `keystore.properties` file.
 Docker's build context excludes this file and keystores; supply them only to
@@ -86,10 +91,23 @@ Package the Linux x86_64 CLI with its JDK 17 runtime using
 `:apps:cli:packageLinuxX64` as the container command instead of the Android build
 tasks. The generated runtime still requires Linux x86_64 validation.
 
-The Docker `check :apps:android:assembleDebug` flow has completed successfully,
-including the configured automated tests and a development APK build. Release
-signing, installation and upgrades on Android devices, and the packaged CLI
-still require validation before publishing release artifacts.
+The Docker flow passed its configured tests and produced a development APK
+before the project rename. Rebuild `cofrinho-build` and rerun
+`check :apps:android:assembleDebug` to validate the renamed code. Release signing,
+installation and upgrades on Android devices, and the packaged CLI still
+require validation before publishing release artifacts.
+
+The release APK is `apps/android/build/outputs/apk/release/cofrinho-release.apk`.
+The CLI launcher is named `cofrinho`; `:apps:cli:packageLinuxX64` writes its
+distribution to `apps/cli/build/package/cofrinho-linux-x86_64/`.
+
+This rename occurs before the first release. Earlier development installations
+have a different Android application ID and default storage paths. Export any
+development ledger before switching, then import it in Cofrinho. The portable
+JSON contract remains version 1, so existing snapshots remain readable. Existing
+CLI databases can be opened using `--db /path/to/existing.sqlite`. Existing
+signing keys must be reused; the signing guide explains how to preserve their
+identity while changing file and alias labels.
 
 ## CLI examples
 
@@ -101,7 +119,7 @@ still require validation before publishing release artifacts.
 ./gradlew :apps:cli:run --args='expense record --id EXPENSE_ID --amount 950'
 ./gradlew :apps:cli:run --args='expense reopen --id EXPENSE_ID --amount 1000 --expected-date 2026-11-02'
 ./gradlew :apps:cli:run --args='budget show --month 2026-10'
-./gradlew :apps:cli:run --args='transfer export --file ./ledger.caixa'
+./gradlew :apps:cli:run --args='transfer export --file ./ledger.cofrinho'
 ./gradlew :apps:cli:run --args='backup list'
 ```
 

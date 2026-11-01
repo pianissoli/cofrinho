@@ -14,4 +14,4 @@ kotlin {
     }
 }
 
-android { namespace = "caixa.finance"; compileSdk = 36 }
+android { namespace = "cofrinho.finance"; compileSdk = 36 }

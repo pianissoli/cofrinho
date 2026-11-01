@@ -1,0 +1,43 @@
+package cofrinho.cli
+
+import cofrinho.finance.ExpenseStatus
+import cofrinho.finance.IdentifierSource
+import cofrinho.finance.Ledger
+import cofrinho.finance.LedgerClock
+import cofrinho.finance.LedgerService
+import cofrinho.finance.PaymentMethod
+import java.nio.file.Files
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+
+private class TestClock : LedgerClock {
+    override fun today(): String = "2026-10-26"
+    override fun nowUtc(): String = "2026-10-26T12:00:00Z"
+}
+
+private class TestIds : IdentifierSource {
+    private var number = 0
+    override fun next(): String = "test-${++number}"
+}
+
+class JdbcLedgerStoreTest {
+    @Test
+    fun plannedStateSurvivesStoreRestart() {
+        val directory = Files.createTempDirectory("cofrinho-store-")
+        val path = directory.resolve("ledger.sqlite")
+        JdbcLedgerStore(path).replace(Ledger("ledger", "BRL", 2))
+        LedgerService(JdbcLedgerStore(path), TestClock(), TestIds()).planExpense(100_00, "2026-10-28", PaymentMethod.DEBIT)
+        val expense = JdbcLedgerStore(path).read().expenses.single()
+        assertEquals(ExpenseStatus.PLANNED, expense.status)
+        assertEquals(PaymentMethod.DEBIT, expense.paymentMethod)
+    }
+
+    @Test
+    fun invalidStateIsRejectedBySqliteConstraint() {
+        val path = Files.createTempDirectory("cofrinho-constraint-").resolve("ledger.sqlite")
+        JdbcLedgerStore(path).replace(Ledger("ledger", "BRL", 2))
+        val store = JdbcLedgerStore(path)
+        assertFailsWith<Exception> { store.connection().createStatement().execute("INSERT INTO expense VALUES ('bad', 100, 'PLANNED', NULL, NULL, 'CREDIT', NULL)") }
+    }
+}

@@ -4,7 +4,7 @@ plugins {
     id("com.android.library")
 }
 
-android { namespace = "caixa.storage"; compileSdk = 36 }
+android { namespace = "cofrinho.storage"; compileSdk = 36 }
 
 kotlin {
     jvmToolchain(17)
@@ -24,8 +24,8 @@ kotlin {
 
 sqldelight {
     databases {
-        create("CaixaDatabase") {
-            packageName.set("caixa.storage.db")
+        create("CofrinhoDatabase") {
+            packageName.set("cofrinho.storage.db")
             srcDirs("src/commonMain/sqldelight")
         }
     }

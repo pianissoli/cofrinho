@@ -3,9 +3,9 @@
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:label="Caixa"
+        android:label="Cofrinho"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Caixa">
+        android:theme="@style/Theme.Cofrinho">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

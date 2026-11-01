@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 
-# Generate the upstream wrapper without evaluating Caixa's Android build.
+# Generate the upstream wrapper without evaluating Cofrinho's Android build.
 FROM gradle:8.11.1-jdk17 AS wrapper-generator
 USER root
-WORKDIR /opt/caixa-wrapper
+WORKDIR /opt/cofrinho-wrapper
 COPY gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.properties
 RUN touch settings.gradle.kts \
     && gradle --no-daemon --offline wrapper \
@@ -19,9 +19,9 @@ COPY gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.prop
 
 # Export these files once, then commit the official scripts and wrapper JAR.
 FROM scratch AS wrapper-files
-COPY --from=wrapper-generator /opt/caixa-wrapper/gradlew /gradlew
-COPY --from=wrapper-generator /opt/caixa-wrapper/gradlew.bat /gradlew.bat
-COPY --from=wrapper-generator /opt/caixa-wrapper/gradle/wrapper/ /gradle/wrapper/
+COPY --from=wrapper-generator /opt/cofrinho-wrapper/gradlew /gradlew
+COPY --from=wrapper-generator /opt/cofrinho-wrapper/gradlew.bat /gradlew.bat
+COPY --from=wrapper-generator /opt/cofrinho-wrapper/gradle/wrapper/ /gradle/wrapper/
 
 FROM eclipse-temurin:17-jdk-jammy AS android-builder
 USER root
@@ -50,8 +50,8 @@ RUN sdkmanager --sdk_root="${ANDROID_HOME}" \
         "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
 ENV ANDROID_USER_HOME=/workspace/.android-docker
-COPY --from=wrapper-generator /opt/caixa-wrapper/ /opt/caixa-wrapper/
+COPY --from=wrapper-generator /opt/cofrinho-wrapper/ /opt/cofrinho-wrapper/
 WORKDIR /workspace
 COPY . .
-ENTRYPOINT ["/opt/caixa-wrapper/gradlew", "--no-daemon"]
+ENTRYPOINT ["/opt/cofrinho-wrapper/gradlew", "--no-daemon"]
 CMD ["check", ":apps:android:assembleDebug"]

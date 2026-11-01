@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.Caixa" parent="android:style/Theme.Material.NoActionBar">
+    <style name="Theme.Cofrinho" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#A7E8B8</item>
         <item name="android:navigationBarColor">#101211</item>

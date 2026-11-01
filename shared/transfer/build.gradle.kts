@@ -4,7 +4,7 @@ plugins {
     id("com.android.library")
 }
 
-android { namespace = "caixa.transfer"; compileSdk = 36 }
+android { namespace = "cofrinho.transfer"; compileSdk = 36 }
 
 kotlin {
     jvmToolchain(17)

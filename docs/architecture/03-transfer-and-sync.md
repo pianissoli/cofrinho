@@ -2,7 +2,7 @@
 
 File transport and conflict handling are separate concerns. USB, a removable
 drive, Bluetooth, or a user-selected document provider can move the same file.
-Caixa does not require a particular cable, a local server, or a cloud account.
+Cofrinho does not require a particular cable, a local server, or a cloud account.
 
 The Android sandbox protects the live database. Export through the system
 document picker and import a selected document into private app storage. On
@@ -12,7 +12,7 @@ desktop, the CLI imports into its configured SQLite ledger.
 
 Adopted on 2026-10-31: versioned logical snapshots are the first-release transport.
 
-Use a single UTF-8 JSON document with the `.caixa` extension for version one.
+Use a single UTF-8 JSON document with the `.cofrinho` extension for version one.
 It contains financial records and transfer metadata, not SQLite internals.
 Dates and enum values have fixed representations. Encode minor-unit amounts
 as decimal strings and validate their signed 64-bit bounds; this prevents
@@ -220,9 +220,9 @@ existing safety design.
 | Location | Android app-private storage; desktop per-user application-data backup directory with restrictive permissions |
 | Retention | Keep the latest 10 ordinary automatic backups per ledger per installation; prune only after a new backup is safely complete |
 | Conflict originals | Pin both conflicting versions until the user explicitly deletes their recovery copies; ordinary retention never removes them |
-| Manual files | User-managed exports stay wherever the user saves them; Caixa never removes them automatically |
+| Manual files | User-managed exports stay wherever the user saves them; Cofrinho never removes them automatically |
 | Device-loss protection | User copies an export to the computer or other external storage; no automatic upload in version one |
-| Android system backup | Explicitly exclude the ledger, backups, checkpoint state, and staged exports from OS cloud backup and automatic device transfer; restore through Caixa's own reviewed import/recovery flow |
+| Android system backup | Explicitly exclude the ledger, backups, checkpoint state, and staged exports from OS cloud backup and automatic device transfer; restore through Cofrinho's own reviewed import/recovery flow |
 | Recovery | Validate and preview a backup in a separate working copy; require an explicit choice before replacing the active ledger |
 | Encryption | App-private backup storage, no additional backup password for version one; portable exports remain plaintext as already agreed |
 
@@ -258,7 +258,7 @@ supported Android version before describing the policy as enforced.
 The first format described here is plaintext. It contains readable amounts,
 income names, and descriptions. Label that clearly in the export screen and
 CLI. Files sent to a user-selected cloud document provider can leave the device;
-Caixa itself should not upload them automatically.
+Cofrinho itself should not upload them automatically.
 
 Confirmed on 2026-10-21: no password or export encryption for now. Android
 app-private storage protects the live phone database from ordinary other apps;

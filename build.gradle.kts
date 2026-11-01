@@ -11,7 +11,7 @@ plugins {
     id("app.cash.sqldelight") version "2.0.2" apply false
 }
 
-group = "caixa"
+group = "cofrinho"
 version = "0.1.0"
 
 subprojects {

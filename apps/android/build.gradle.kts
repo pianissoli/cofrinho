@@ -8,16 +8,18 @@ plugins {
 
 kotlin { jvmToolchain(17) }
 
+base { archivesName.set("cofrinho") }
+
 val signingProperties: Properties = Properties()
 val signingFile = rootProject.file("keystore.properties")
 if (signingFile.isFile) signingFile.inputStream().use(signingProperties::load)
 
 android {
-    namespace = "caixa.android"
+    namespace = "cofrinho.android"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.caixa.app"
+        applicationId = "com.cofrinho.app"
         minSdk = 36
         targetSdk = 36
         versionCode = 1
@@ -28,6 +30,8 @@ android {
         if (signingFile.isFile) {
             create("release") {
                 storeFile = rootProject.file(signingProperties.getProperty("storeFile"))
+                // Existing signing files retain their format until conversion is verified.
+                storeType = signingProperties.getProperty("storeType", storeType)
                 storePassword = signingProperties.getProperty("storePassword")
                 keyAlias = signingProperties.getProperty("keyAlias")
                 keyPassword = signingProperties.getProperty("keyPassword")

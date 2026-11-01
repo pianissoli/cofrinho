@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Caixa — mobile interface preview</title>
+  <title>Cofrinho — mobile interface preview</title>
   <style>
     :root { color-scheme: dark; --page: #101211; --card: #1c201e; --line: #323a35; --text: #f1f4f2; --muted: #a5b2aa; --green: #a7e8b8; --amber: #efca86; --red: #ffaaa4; }
     * { box-sizing: border-box; }
@@ -93,9 +93,9 @@
   </style>
 </head>
 <body>
-  <aside class="preview-banner"><strong>Caixa · interface preview</strong><br>Tap the tabs and buttons. Sample BRL amounts; October 26, 2026. New-entry dates use your local today. Forms are illustrative and nothing is saved. Open in a recent browser.</aside>
+  <aside class="preview-banner"><strong>Cofrinho · interface preview</strong><br>Tap the tabs and buttons. Sample BRL amounts; October 26, 2026. New-entry dates use your local today. Forms are illustrative and nothing is saved. Open in a recent browser.</aside>
   <div class="phone">
-    <header class="app-header"><div class="brand">caixa<span>.</span></div><span class="badge">Offline · on this device</span></header>
+    <header class="app-header"><div class="brand">cofrinho<span>.</span></div><span class="badge">Offline · on this device</span></header>
     <main>
       <section class="screen" id="overview" aria-labelledby="overview-title">
         <h1 id="overview-title">Your month, at a glance.</h1>
@@ -235,7 +235,7 @@
     <div class="row sheet-head"><h2 id="resume-title">Resume on this phone?</h2><button class="close" popovertarget="resume-editing" popovertargetaction="hide" aria-label="Close">×</button></div><p class="note warning">The computer may already have an independent copy. If both devices change, you will need to choose which version to keep.</p><button class="primary wide" popovertarget="preview-notice">Resume editing here</button><button class="wide" popovertarget="handoff-preview">Stay read-only</button>
   </div>
   <div id="import-file" popover role="dialog" aria-labelledby="import-title">
-    <div class="row sheet-head"><h2 id="import-title">Import a ledger</h2><button class="close" popovertarget="import-file" popovertargetaction="hide" aria-label="Close">×</button></div><label for="ledger-file">Select a .caixa file</label><input id="ledger-file" type="file" accept=".caixa"><small style="margin-top:12px">This preview does not read the selected file. Use the example below to inspect the next screen.</small><button class="primary wide" popovertarget="import-preview">Preview example import</button>
+    <div class="row sheet-head"><h2 id="import-title">Import a ledger</h2><button class="close" popovertarget="import-file" popovertargetaction="hide" aria-label="Close">×</button></div><label for="ledger-file">Select a .cofrinho file</label><input id="ledger-file" type="file" accept=".cofrinho"><small style="margin-top:12px">This preview does not read the selected file. Use the example below to inspect the next screen.</small><button class="primary wide" popovertarget="import-preview">Preview example import</button>
   </div>
   <div id="import-preview" popover role="dialog" aria-labelledby="import-preview-title">
     <div class="row sheet-head"><h2 id="import-preview-title">Review incoming ledger</h2><button class="close" popovertarget="import-preview" popovertargetaction="hide" aria-label="Close">×</button></div><p>Personal ledger · BRL<br><small>From computer · October 2026 summary</small></p><div class="card"><div class="row"><span>Planned income</span><strong>R$ 3,000</strong></div><div class="row"><span>Spent</span><strong>R$ 520</strong></div><div class="row"><span>Reserved</span><strong>R$ 1,000</strong></div><div class="row"><span>Available</span><strong>R$ 1,480</strong></div></div><p>Groceries changed from R$ 150 to R$ 170. Everything else is unchanged.</p><small>Replaces this device's financial records across all months. A backup is created before applying changes.</small><button class="primary wide" popovertarget="preview-notice">Import this version</button><button class="wide" popovertarget="conflict-preview">Preview a conflicting import</button>

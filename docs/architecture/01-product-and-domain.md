@@ -243,22 +243,22 @@ Both interfaces must offer the following behavior:
 Illustrative CLI commands, to be finalized with the chosen command library:
 
 ```text
-caixa expense add --amount 42.90 --date 2026-10-19 --payment credit
-caixa expense plan --amount 1000.00 --expected-date 2026-10-28
-caixa expense record <expense-id> --amount 950.00 --date 2026-10-28
-caixa expense reschedule <expense-id> --expected-date 2026-11-02
-caixa expense cancel <expense-id>
-caixa expense list --month 2026-10
-caixa expense edit <expense-id> --payment debit
-caixa expense delete <expense-id>
-caixa income add --name Salary --amount 3000.00 --from 2026-10
-caixa income change <source-id> --amount 3100.00 --from 2026-12
-caixa income override <source-id> --month 2026-11 --amount 2800.00
-caixa income clear-override <source-id> --month 2026-11
-caixa income archive <source-id> --from 2027-01
-caixa budget show --month 2026-10
-caixa transfer export ./ledger.caixa
-caixa transfer import ./ledger.caixa
+cofrinho expense add --amount 42.90 --date 2026-10-19 --payment credit
+cofrinho expense plan --amount 1000.00 --expected-date 2026-10-28
+cofrinho expense record <expense-id> --amount 950.00 --date 2026-10-28
+cofrinho expense reschedule <expense-id> --expected-date 2026-11-02
+cofrinho expense cancel <expense-id>
+cofrinho expense list --month 2026-10
+cofrinho expense edit <expense-id> --payment debit
+cofrinho expense delete <expense-id>
+cofrinho income add --name Salary --amount 3000.00 --from 2026-10
+cofrinho income change <source-id> --amount 3100.00 --from 2026-12
+cofrinho income override <source-id> --month 2026-11 --amount 2800.00
+cofrinho income clear-override <source-id> --month 2026-11
+cofrinho income archive <source-id> --from 2027-01
+cofrinho budget show --month 2026-10
+cofrinho transfer export ./ledger.cofrinho
+cofrinho transfer import ./ledger.cofrinho
 ```
 
 The CLI accepts a database path and has a documented default under the user's

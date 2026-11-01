@@ -1,10 +1,10 @@
-# Caixa architecture
+# Cofrinho architecture
 
 Status: first-release product, platform, architecture, and backup decisions adopted.
 The first implementation path is present; host build verification still needs
 the selected JDK, Gradle, and Android SDK toolchain.
 
-Caixa is an Android application for entering expenses, defining a budget from
+Cofrinho is an Android application for entering expenses, defining a budget from
 income sources, and seeing spending against that budget. It works without a
 network connection. A desktop CLI provides the same financial operations and
 stores its working ledger in SQLite. Users carry their ledger between devices
@@ -65,7 +65,7 @@ flowchart LR
     CLI --> Exchange
     IOS -.-> Exchange
     Exchange --> Store
-    Exchange <--> File[User-carried .caixa file]
+    Exchange <--> File[User-carried .cofrinho file]
 ```
 
 The database nodes represent separate installations. Each application connects

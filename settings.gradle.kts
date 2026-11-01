@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "caixa"
+rootProject.name = "cofrinho"
 include(":shared:finance")
 include(":shared:transfer")
 include(":shared:storage")

@@ -17,14 +17,17 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
-application { mainClass.set("caixa.cli.MainKt") }
+application {
+    applicationName = "cofrinho"
+    mainClass.set("cofrinho.cli.MainKt")
+}
 
 tasks.register("packageLinuxX64") {
     dependsOn("installDist")
     doLast {
         check(System.getProperty("os.name").lowercase().contains("linux")) { "Linux x86_64 packaging requires a Linux host" }
-        val install = project.layout.buildDirectory.dir("install/cli").get().asFile
-        val packageRoot = project.layout.buildDirectory.dir("package/caixa-linux-x86_64").get().asFile
+        val install = project.layout.buildDirectory.dir("install/cofrinho").get().asFile
+        val packageRoot = project.layout.buildDirectory.dir("package/cofrinho-linux-x86_64").get().asFile
         project.delete(packageRoot)
         project.copy { from(install); into(packageRoot) }
         val jlink: File = File(System.getProperty("java.home"), "bin/jlink")
