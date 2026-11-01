@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     kotlin("jvm")
     application
@@ -25,7 +27,7 @@ tasks.register("packageLinuxX64") {
         val packageRoot = project.layout.buildDirectory.dir("package/caixa-linux-x86_64").get().asFile
         project.delete(packageRoot)
         project.copy { from(install); into(packageRoot) }
-        val jlink = java.io.File(System.getProperty("java.home"), "bin/jlink")
+        val jlink: File = File(System.getProperty("java.home"), "bin/jlink")
         check(jlink.isFile) { "Bundled JVM packaging requires JDK 17 jlink at '${jlink.absolutePath}'" }
         project.exec {
             commandLine(jlink.absolutePath, "--add-modules", "java.base,java.sql,java.logging,jdk.crypto.ec", "--strip-debug", "--no-man-pages", "--no-header-files", "--output", packageRoot.resolve("jre").absolutePath)

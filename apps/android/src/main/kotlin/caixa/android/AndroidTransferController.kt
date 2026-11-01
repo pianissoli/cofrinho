@@ -22,8 +22,9 @@ data class PendingAndroidImport(
 class AndroidTransferController(private val context: Context, private val store: AndroidLedgerStore, private val backups: AndroidBackupManager) {
     fun export(uri: Uri) {
         val state = store.readTransferState()
-        val contents = if (state.handedOff && state.stagedPayload != null) {
-            state.stagedPayload
+        val stagedPayload: String? = state.stagedPayload
+        val contents: String = if (state.handedOff && stagedPayload != null) {
+            stagedPayload
         } else {
             if (state.handedOff) error("Ledger is already handed off; import the returned file or resume editing first")
             val ledger = store.read()
@@ -60,7 +61,9 @@ class AndroidTransferController(private val context: Context, private val store:
         store.replaceWithTransferStateAndReceipt(imported, TransferState(pending.snapshot.checkpointId, pending.snapshot.parentCheckpointId, pending.digest, imported.revision, false, null), pending.snapshot.checkpointId, pending.digest)
     }
 
+    /** Preserves both versions for a later conflict decision. Example: controller.preserveConflict(pending). */
     fun preserveConflict(pending: PendingAndroidImport) {
+        backups.preserveLocalConflict()
         backups.preserveConflict(pending.snapshot, pending.digest)
     }
 

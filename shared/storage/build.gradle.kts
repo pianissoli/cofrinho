@@ -7,6 +7,7 @@ plugins {
 android { namespace = "caixa.storage"; compileSdk = 36 }
 
 kotlin {
+    jvmToolchain(17)
     jvm()
     androidTarget()
 

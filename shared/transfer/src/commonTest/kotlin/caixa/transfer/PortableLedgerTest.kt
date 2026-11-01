@@ -14,7 +14,9 @@ class PortableLedgerTest {
     fun plannedAndRecurringRecordsRoundTrip() {
         val ledger = Ledger("ledger", "BRL", 2, listOf(IncomeSource("source", "Salary")), schedules = listOf(caixa.finance.IncomeSchedule("schedule", "source", "2026-10", 250_000)), expenses = listOf(caixa.finance.Expense("expense", 100_000, ExpenseStatus.PLANNED, "2026-10-31", null, PaymentMethod.CREDIT, "Rent")))
         val snapshot = PortableLedgerCodec.snapshot(ledger, "checkpoint", null, "2026-10-30T12:00:00Z")
-        val restored = PortableLedgerCodec.ledger(PortableLedgerCodec.decode(PortableLedgerCodec.encode(snapshot)))
+        val restoredSnapshot: PortableLedger = PortableLedgerCodec.decode(PortableLedgerCodec.encode(snapshot))
+        val restored: Ledger = PortableLedgerCodec.ledger(restoredSnapshot)
+        assertEquals(snapshot, restoredSnapshot)
         assertEquals(ledger.sources, restored.sources)
         assertEquals(ledger.schedules, restored.schedules)
         assertEquals(ledger.expenses, restored.expenses)

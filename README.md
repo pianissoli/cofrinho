@@ -15,24 +15,81 @@ Offline-first personal budget ledger. The first release targets Android 16
   interface and offline flow.
 - `docs/design/mobile-preview.html`: clickable interface preview.
 
-## Toolchain
+## Build with Docker
 
-Install JDK 17, Android SDK platform 36, and Gradle. Then run:
+The host needs Docker and a checkout of this repository. Java, Gradle, the
+Android SDK, and Android Studio do not need to be installed on the host.
+The Linux x86_64 build uses JDK 17, Gradle 8.11.1, Android SDK
+platform 36, and SDK Build Tools 35.0.0, matching Android Gradle Plugin 8.10.1.
+These versions follow [Android's compatibility table](https://developer.android.com/build/releases/agp-8-10-0-release-notes).
+Gradle distribution and wrapper JAR checksums are pinned to the
+[official Gradle checksum reference](https://gradle.org/release-checksums/).
+Building the image accepts Google's Android SDK licenses. The first build
+downloads tools and dependencies; the installed application works offline.
 
-```text
-./gradlew check
+Generate the official Gradle Wrapper once, from the project directory:
+
+```bash
+docker build --target wrapper-files --output type=local,dest=. .
 ```
 
-Build the unsigned development APK with `./gradlew :apps:android:assembleDebug`.
-Release signing is supplied through a local `keystore.properties` file and is
-never committed. The release target remains a direct APK; no store publishing
-configuration is included.
+This exports `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`, and
+`gradle/wrapper/gradle-wrapper.properties`. Commit all four files. The temporary
+`gradlew` bootstrap message is replaced by Gradle's official generated launcher.
+The wrapper pins Gradle and verifies its downloaded distribution checksum; it
+is part of the source repository, rather than a host-installed program.
+The Dockerfile generates it in an isolated empty build, so application compile
+errors cannot prevent wrapper generation. The builder also keeps this wrapper
+inside the image, available when the source directory is mounted over it.
+
+Build the toolchain image, then run tests and create a development APK:
+
+```bash
+docker build --tag caixa-build .
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  caixa-build check :apps:android:assembleDebug
+```
+
+The bind mount keeps build outputs on the host. Running with the host user's
+UID/GID keeps those files owned by that user. Downloads are cached in the
+ignored `.gradle-docker/` directory. The APK is written to
+`apps/android/build/outputs/apk/debug/android-debug.apk` and is signed with a
+development key, not the permanent release key. Android's development keystore
+is retained in the ignored `.android-docker/` directory between container runs.
+
+To inspect the toolchain without compiling the application:
+
+```bash
+docker run --rm caixa-build --version
+```
+
+Direct `./gradlew check` is also available after exporting the wrapper, but
+running outside Docker requires JDK 17 and Android SDK 36 on the host. No
+separate system Gradle installation is needed. APK installation and upgrade
+checks still need an Android 16+ phone or an emulator.
+
+## Release builds
+
+Release signing is supplied through an uncommitted `keystore.properties` file.
+Docker's build context excludes this file and keystores; supply them only to
+the running build container. A release build uses `:apps:android:assembleRelease`
+with a readable signing configuration and keystore. The `storeFile` path must
+refer to the container's keystore path. A local project-root signing file is
+visible through the source bind mount; a keystore outside the project needs a
+separate read-only mount. Keep the permanent signing key backed up separately.
+The release target remains a direct APK. GitHub Actions release automation is
+not configured by this Dockerfile.
 
 Package the Linux x86_64 CLI with its JDK 17 runtime using
-`./gradlew :apps:cli:packageLinuxX64` on a Linux build host.
+`:apps:cli:packageLinuxX64` as the container command instead of the Android build
+tasks. The generated runtime still requires Linux x86_64 validation.
 
-The current environment used to create this project has no JDK, Kotlin compiler,
-Gradle installation, or Android SDK, so those commands could not run here.
+The Docker `check :apps:android:assembleDebug` flow has completed successfully,
+including the configured automated tests and a development APK build. Release
+signing, installation and upgrades on Android devices, and the packaged CLI
+still require validation before publishing release artifacts.
 
 ## CLI examples
 

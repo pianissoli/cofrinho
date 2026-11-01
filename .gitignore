@@ -1,13 +1,33 @@
+# Generated outputs and local tool caches stay out of source history.
 .gradle/
+.gradle-docker/
+.android-docker/
+.kotlin/
 build/
 **/build/
+*.apk
+*.aab
+*.apks
+*.idsig
+
 .idea/
 *.iml
+
+# Financial records and recovery copies belong to the user.
 *.sqlite
-*.sqlite-wal
-*.sqlite-shm
+*.sqlite-*
 *.caixa
 backups/
+
+# Local machine settings and signing credentials must remain private.
 local.properties
 keystore.properties
 *.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+!.env.example

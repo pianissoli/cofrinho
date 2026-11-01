@@ -1,16 +1,31 @@
+import com.android.build.gradle.BaseExtension
+
 plugins {
     kotlin("multiplatform") version "2.0.21" apply false
     kotlin("plugin.serialization") version "2.0.21" apply false
     kotlin("jvm") version "2.0.21" apply false
     kotlin("android") version "2.0.21" apply false
     kotlin("plugin.compose") version "2.0.21" apply false
-    id("com.android.application") version "8.7.3" apply false
-    id("com.android.library") version "8.7.3" apply false
+    id("com.android.application") version "8.10.1" apply false
+    id("com.android.library") version "8.10.1" apply false
     id("app.cash.sqldelight") version "2.0.2" apply false
 }
 
 group = "caixa"
 version = "0.1.0"
+
+subprojects {
+    listOf("com.android.application", "com.android.library").forEach { androidPluginId ->
+        plugins.withId(androidPluginId) {
+            extensions.configure<BaseExtension> {
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+            }
+        }
+    }
+}
 
 tasks.register("checkProjectLayout") {
     doLast {
@@ -27,5 +42,5 @@ tasks.register("checkProjectLayout") {
 
 tasks.register("check") {
     dependsOn("checkProjectLayout")
-    dependsOn(subprojects.map { "${it.path}:check" })
+    dependsOn(subprojects.map { it.tasks.matching { candidate -> candidate.name == "check" } })
 }

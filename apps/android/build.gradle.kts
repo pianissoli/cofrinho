@@ -1,10 +1,14 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     kotlin("android")
     kotlin("plugin.compose")
 }
 
-val signingProperties = java.util.Properties()
+kotlin { jvmToolchain(17) }
+
+val signingProperties: Properties = Properties()
 val signingFile = rootProject.file("keystore.properties")
 if (signingFile.isFile) signingFile.inputStream().use(signingProperties::load)
 

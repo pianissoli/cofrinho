@@ -46,6 +46,7 @@ CREATE TABLE transfer_state (
     checkpoint_id TEXT,
     parent_checkpoint_id TEXT,
     payload_digest TEXT,
+    revision INTEGER NOT NULL DEFAULT 0,
     handed_off INTEGER NOT NULL DEFAULT 0 CHECK(handed_off IN (0, 1)),
     staged_payload TEXT
 );

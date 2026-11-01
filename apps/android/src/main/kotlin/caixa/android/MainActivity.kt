@@ -290,7 +290,7 @@ private fun ImportReview(pending: PendingAndroidImport, controller: AndroidTrans
             Text("${summary.sources.size} income sources · ${summary.expenses.size} expenses · ${summary.currencyCode}")
             Text("Use the incoming version only after reviewing its complete ledger.")
         }
-    }, confirmButton = { TextButton(onClick = { controller.apply(pending, true); onLedgerChanged(); dismiss() }) { Text(if (conflict) "Use imported" else "Import") } }, dismissButton = { TextButton(onClick = { if (conflict) { controller.preserveLocalConflict(); controller.preserveConflict(pending) }; dismiss() }) { Text(if (conflict) "Keep local" else "Cancel") } })
+    }, confirmButton = { TextButton(onClick = { controller.apply(pending, true); onLedgerChanged(); dismiss() }) { Text(if (conflict) "Use imported" else "Import") } }, dismissButton = { TextButton(onClick = { if (conflict) { controller.preserveConflict(pending) }; dismiss() }) { Text(if (conflict) "Keep local" else "Cancel") } })
 }
 
 @Composable

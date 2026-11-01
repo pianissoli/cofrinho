@@ -182,8 +182,9 @@ class CaixaCli(private val databasePath: Path) {
     private fun exportLedger(store: JdbcLedgerStore, args: MutableList<String>) {
         val destination = Path.of(requireOption(args, "--file"))
         val state = store.readTransferState()
-        val contents = if (state.handedOff && state.stagedPayload != null) {
-            state.stagedPayload
+        val stagedPayload: String? = state.stagedPayload
+        val contents: String = if (state.handedOff && stagedPayload != null) {
+            stagedPayload
         } else {
             requireEditable(store)
             val ledger = store.read()
@@ -209,7 +210,8 @@ class CaixaCli(private val databasePath: Path) {
         val digest = sha256(contents)
         rejectCheckpointReuse(state, incoming.checkpointId, digest)
         val checkpoint = state.checkpointId?.let { Checkpoint(it, state.parentCheckpointId, state.payloadDigest.orEmpty(), state.revision) }
-        val inspection = TransferPolicy().inspect(store.read(), checkpoint, incoming, digest, store.readTransferReceipts())
+        val current: Ledger = store.read()
+        val inspection = TransferPolicy().inspect(current, checkpoint, incoming, digest, store.readTransferReceipts())
         if (inspection.decision == ImportDecision.NO_OP) return println("This checkpoint was already imported; no changes made")
         requireChoice(inspection.decision, useImport, keepLocal)
         if (keepLocal) {
@@ -329,10 +331,6 @@ Caixa offline ledger
   backup retry
   backup restore --file PATH --use-backup
 """.trimIndent())
-}
-
-private object DefaultPaths {
-    val database: Path = Path.of(System.getProperty("user.home"), ".local", "share", "caixa", "caixa.sqlite")
 }
 
 private object SystemClock : LedgerClock {

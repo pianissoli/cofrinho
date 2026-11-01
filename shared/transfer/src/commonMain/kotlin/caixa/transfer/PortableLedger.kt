@@ -11,6 +11,7 @@ import caixa.finance.Ledger
 import caixa.finance.PaymentMethod
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
@@ -95,7 +96,7 @@ object PortableLedgerCodec {
 
     fun decode(contents: String): PortableLedger = try {
         if (contents.length > MAX_DOCUMENT_CHARS) throw FinanceException("Import is too large '${contents.length}'; expected at most $MAX_DOCUMENT_CHARS characters")
-        json.decodeFromString(contents).also(::validate)
+        json.decodeFromString<PortableLedger>(contents).also(::validate)
     } catch (error: Exception) {
         if (error is FinanceException) throw error
         throw FinanceException("Invalid .caixa file '${error.message}'; expected a valid versioned ledger document")
