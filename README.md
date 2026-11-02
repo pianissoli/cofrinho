@@ -72,6 +72,12 @@ checks still need an Android 16+ phone or an emulator.
 
 ## Release builds
 
+To download signed APKs from GitHub without building locally, follow the
+[GitHub Releases setup](docs/release/github-releases.md). Configure the four
+repository signing secrets once, then push a version tag such as `v0.1.0`.
+The Android release workflow runs checks, signs the APK with the existing key,
+verifies its signature, and publishes it with a SHA-256 checksum.
+
 Use a PKCS#12 (`.p12`) signing keystore and `storeType=PKCS12` in the local
 signing configuration. The [Android signing guide](docs/release/android-signing.md)
 explains how to convert an existing JKS without changing the signing identity,
@@ -84,8 +90,8 @@ with a readable signing configuration and keystore. The `storeFile` path must
 refer to the container's keystore path. A local project-root signing file is
 visible through the source bind mount; a keystore outside the project needs a
 separate read-only mount. Keep the permanent signing key backed up separately.
-The release target remains a direct APK. GitHub Actions release automation is
-not configured by this Dockerfile.
+The release target remains a direct APK. GitHub Actions release automation
+lives in `.github/workflows/android-release.yml` and uses this Dockerfile.
 
 Package the Linux x86_64 CLI with its JDK 17 runtime using
 `:apps:cli:packageLinuxX64` as the container command instead of the Android build

@@ -1,0 +1,116 @@
+name: Android release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Validate release tag
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'Invalid release tag %s; expected vMAJOR.MINOR.PATCH\n' "$GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Build Docker toolchain
+        run: docker build --tag cofrinho-build .
+
+      - name: Run checks
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:/workspace" \
+            cofrinho-build check
+
+      - name: Sign release APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -u
+          for secret_name in ANDROID_KEYSTORE_BASE64 ANDROID_STORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!secret_name}" ]]; then
+              printf 'Missing %s; expected a nonempty repository secret\n' "$secret_name" >&2
+              exit 1
+            fi
+          done
+          umask 077
+          mkdir -p "$RUNNER_TEMP/cofrinho-signing"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode \
+            > "$RUNNER_TEMP/cofrinho-signing/cofrinho-release.p12"
+
+          # Inject signing only at runtime so the private key never enters the image.
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:/workspace" \
+            --volume "$RUNNER_TEMP/cofrinho-signing:/signing:ro" \
+            --env ANDROID_STORE_PASSWORD \
+            --env ANDROID_KEY_ALIAS \
+            --env ANDROID_KEY_PASSWORD \
+            --entrypoint bash \
+            cofrinho-build -ceu '
+              exec /opt/cofrinho-wrapper/gradlew --no-daemon :apps:android:assembleRelease \
+                -Pandroid.injected.signing.store.file=/signing/cofrinho-release.p12 \
+                -Pandroid.injected.signing.store.type=PKCS12 \
+                "-Pandroid.injected.signing.store.password=$ANDROID_STORE_PASSWORD" \
+                "-Pandroid.injected.signing.key.alias=$ANDROID_KEY_ALIAS" \
+                "-Pandroid.injected.signing.key.password=$ANDROID_KEY_PASSWORD"
+            '
+
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/cofrinho-signing/cofrinho-release.p12"
+
+      - name: Verify and prepare release assets
+        run: |
+          apk_directory=apps/android/build/outputs/apk/release
+          apk_version=$(jq --exit-status --raw-output '.elements[0].versionName' "$apk_directory/output-metadata.json")
+          if [[ "$GITHUB_REF_NAME" != "v$apk_version" ]]; then
+            printf 'Tag %s does not match APK version %s; expected v%s\n' "$GITHUB_REF_NAME" "$apk_version" "$apk_version" >&2
+            exit 1
+          fi
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:/workspace:ro" \
+            --entrypoint apksigner \
+            cofrinho-build verify --verbose --print-certs \
+            "/workspace/$apk_directory/cofrinho-release.apk"
+
+          mkdir -p "$RUNNER_TEMP/cofrinho-release"
+          cp "$apk_directory/cofrinho-release.apk" "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME.apk"
+          cd "$RUNNER_TEMP/cofrinho-release"
+          sha256sum "cofrinho-$GITHUB_REF_NAME.apk" > "cofrinho-$GITHUB_REF_NAME.apk.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME.apk" \
+            "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME.apk.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "Cofrinho $GITHUB_REF_NAME" \
+            --generate-notes

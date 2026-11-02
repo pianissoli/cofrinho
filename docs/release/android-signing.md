@@ -110,10 +110,12 @@ base64 -w 0 "$cofrinho_signing_dir/cofrinho-release.p12" \
 
 Set `ANDROID_KEYSTORE_BASE64` to the new file's contents. Set
 `ANDROID_STORE_PASSWORD` and `ANDROID_KEY_PASSWORD` to the matching PKCS#12
-password, and keep `ANDROID_KEY_ALIAS=cofrinho-release`. The future release workflow
-must reconstruct a `.p12` file and specify `storeType=PKCS12` in its temporary
-signing properties. Repository secrets and workflows are not changed by editing
-the example file.
+password, and use `ANDROID_KEY_ALIAS=cofrinho-release` if that is the alias in
+the uploaded file. For an existing file with another alias, use its real alias.
+The [Android release workflow](github-releases.md) reconstructs a `.p12` file and
+selects PKCS#12 through Android Gradle Plugin's runtime signing options. It does
+not need a local or temporary `keystore.properties` file. Repository secrets
+are not changed by editing the example file.
 
 Keystores and `keystore.properties` remain ignored by Git and excluded from
 Docker's build context. Store the encoded keystore outside the repository too;
