@@ -72,11 +72,12 @@ checks still need an Android 16+ phone or an emulator.
 
 ## Release builds
 
-To download signed APKs from GitHub without building locally, follow the
+To download signed APKs and the Linux CLI from GitHub without building locally, follow the
 [GitHub Releases setup](docs/release/github-releases.md). Configure the four
 repository signing secrets once, then push a version tag such as `v0.1.0`.
-The Android release workflow runs checks, signs the APK with the existing key,
-verifies its signature, and publishes it with a SHA-256 checksum.
+The Android release workflow runs checks, packages and smoke-tests the CLI,
+signs the APK with the existing key, verifies its signature, and publishes all
+artifacts with SHA-256 checksums.
 
 Use a PKCS#12 (`.p12`) signing keystore and `storeType=PKCS12` in the local
 signing configuration. The [Android signing guide](docs/release/android-signing.md)
@@ -98,14 +99,14 @@ Package the Linux x86_64 CLI with its JDK 17 runtime using
 tasks. The generated runtime still requires Linux x86_64 validation.
 
 The Docker flow passed its configured tests and produced a development APK
-before the project rename. Rebuild `cofrinho-build` and rerun
-`check :apps:android:assembleDebug` to validate the renamed code. Release signing,
-installation and upgrades on Android devices, and the packaged CLI still
-require validation before publishing release artifacts.
+before the project rename. The GitHub release workflow now rebuilds the image,
+runs checks, packages and smoke-tests the CLI, and validates release signing
+before publishing artifacts. Release installation and upgrade checks still need
+an Android device or emulator.
 
 The release APK is `apps/android/build/outputs/apk/release/cofrinho-release.apk`.
 The CLI launcher is named `cofrinho`; `:apps:cli:packageLinuxX64` writes its
-distribution to `apps/cli/build/package/cofrinho-linux-x86_64/`.
+self-contained distribution to `apps/cli/build/package/cofrinho-linux-x86_64/`.
 
 This rename occurs before the first release. Earlier development installations
 have a different Android application ID and default storage paths. Export any

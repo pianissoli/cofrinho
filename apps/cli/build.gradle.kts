@@ -26,6 +26,7 @@ tasks.register("packageLinuxX64") {
     dependsOn("installDist")
     doLast {
         check(System.getProperty("os.name").lowercase().contains("linux")) { "Linux x86_64 packaging requires a Linux host" }
+        check(System.getProperty("os.arch").lowercase() in setOf("x86_64", "amd64")) { "Linux x86_64 packaging requires an x86_64 host" }
         val install = project.layout.buildDirectory.dir("install/cofrinho").get().asFile
         val packageRoot = project.layout.buildDirectory.dir("package/cofrinho-linux-x86_64").get().asFile
         project.delete(packageRoot)
@@ -35,5 +36,22 @@ tasks.register("packageLinuxX64") {
         project.exec {
             commandLine(jlink.absolutePath, "--add-modules", "java.base,java.sql,java.logging,jdk.crypto.ec", "--strip-debug", "--no-man-pages", "--no-header-files", "--output", packageRoot.resolve("jre").absolutePath)
         }
+        patchBundledLauncher(packageRoot.resolve("bin/cofrinho"))
     }
+}
+
+private fun patchBundledLauncher(launcher: File) {
+    check(launcher.isFile) { "CLI launcher '${launcher.absolutePath}' is missing; expected a generated executable" }
+    val marker = "if [ -n \"\$JAVA_HOME\" ] ; then"
+    val script = launcher.readText()
+    check(script.contains(marker)) { "CLI launcher '${launcher.absolutePath}' has no Java selection marker" }
+    val runtimeSelection = """
+        BUNDLED_JAVA_HOME="${'$'}APP_HOME/jre"
+        if [ ! -x "${'$'}BUNDLED_JAVA_HOME/bin/java" ]; then
+            die "ERROR: bundled Java runtime is missing: ${'$'}BUNDLED_JAVA_HOME"
+        fi
+        JAVA_HOME="${'$'}BUNDLED_JAVA_HOME"
+    """.trimIndent()
+    launcher.writeText(script.replace(marker, "$runtimeSelection\n$marker"))
+    check(launcher.setExecutable(true)) { "CLI launcher '${launcher.absolutePath}' cannot be marked executable" }
 }

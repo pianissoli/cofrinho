@@ -1,13 +1,14 @@
-# Android APK releases on GitHub
+# Cofrinho releases on GitHub
 
-GitHub Actions builds, tests, signs, and publishes the APK on GitHub's Linux
-runner using the repository's Dockerfile. The computer used to push a release
-tag does not need Java, Gradle, the Android SDK, or a local APK build.
+GitHub Actions builds, tests, signs, packages, and publishes the Android APK and
+Linux x86_64 CLI on GitHub's Linux runner using the repository's Dockerfile. The
+computer used to push a release tag does not need Java, Gradle, the Android SDK,
+or a local build.
 
 The workflow is [Android release](../../.github/workflows/android-release.yml).
-It runs when a tag such as `v0.1.0` is pushed. It publishes the APK and its SHA-256
-checksum as GitHub Release assets after tests and signature verification pass.
-This workflow publishes Android APKs; CLI packaging remains a separate task.
+It runs when a tag such as `v0.1.0` is pushed. It publishes the APK, its SHA-256
+checksum, the self-contained CLI archive, and its checksum as GitHub Release
+assets after tests and verification pass.
 
 ## Configure the existing signing key once
 
@@ -98,12 +99,15 @@ different application ID require exporting and importing their ledger.
 
 1. Checks out the version tag and validates its format.
 2. Builds `cofrinho-build` and runs the repository's `check` task.
-3. Decodes the secret keystore outside the checkout and mounts it read-only.
-4. Builds the release APK using Android Gradle Plugin's runtime signing options.
-5. Deletes the temporary keystore even if signing fails.
-6. Checks that the APK version matches the tag and verifies its signature with
+3. Packages the Linux x86_64 CLI with its bundled JRE.
+4. Runs CLI operations in an Ubuntu container with no system Java and an invalid
+   `JAVA_HOME`, including SQLite and export/import checks.
+5. Decodes the secret keystore outside the checkout and mounts it read-only.
+6. Builds the release APK using Android Gradle Plugin's runtime signing options.
+7. Deletes the temporary keystore even if signing fails.
+8. Checks that the APK version matches the tag and verifies its signature with
    `apksigner`, printing the public certificate fingerprint for review.
-7. Publishes the signed APK and checksum to GitHub Releases.
+9. Publishes the signed APK, CLI archive, and both checksums to GitHub Releases.
 
 The keystore is never copied into the Docker image. Signing passwords enter
 only the signing container through environment variables; the workflow does
