@@ -12,6 +12,7 @@ build/
 
 .idea/
 *.iml
+__pycache__/
 
 # Financial records and recovery copies belong to the user.
 *.sqlite

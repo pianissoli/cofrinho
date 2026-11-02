@@ -53,6 +53,25 @@ policy must permit that permission.
 
 ## Publish a version
 
+For the normal next-patch release, start from a clean `master` checkout and run:
+
+```bash
+python3 scripts/bump.py
+```
+
+The script checks the remote and existing tags before editing version files.
+It advances the patch version and Android `versionCode`, commits just those
+files, pushes `master`, then creates and pushes the annotated tag that starts
+this workflow. Python 3 and Git are the only local requirements. Local commits
+already on `master` are included in the push; remote commits must already be
+incorporated locally. No tags are force-updated or pushed in bulk.
+
+If a push fails after the version commit, finish that release with the recovery
+commands printed by the script. Do not run a new bump to retry an incomplete
+release. The version commit and any local tag are preserved for recovery.
+
+For a manual release or a minor/major version change, use the steps below.
+
 In `apps/android/build.gradle.kts`, set:
 
 - `versionName` to the release version, for example `0.1.0`.

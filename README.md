@@ -79,6 +79,13 @@ The Android release workflow runs checks, packages and smoke-tests the CLI,
 signs the APK with the existing key, verifies its signature, and publishes all
 artifacts with SHA-256 checksums.
 
+To publish the next patch release from a clean `master` checkout, run
+`python3 scripts/bump.py`. The script increments the project version, Android
+`versionName`, and `versionCode`, commits the changes, pushes `master`, and then
+creates and pushes the annotated version tag. It needs Python 3 and Git, and
+checks remote history and tag conflicts before editing files. Run its tests
+with `python3 -m unittest discover -s scripts -p 'test_*.py'`.
+
 Use a PKCS#12 (`.p12`) signing keystore and `storeType=PKCS12` in the local
 signing configuration. The [Android signing guide](docs/release/android-signing.md)
 explains how to convert an existing JKS without changing the signing identity,
