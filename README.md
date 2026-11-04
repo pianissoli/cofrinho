@@ -10,7 +10,8 @@ Offline-first personal budget ledger. The first release targets Android 16
 - `shared/transfer`: versioned `.cofrinho` JSON snapshots and import validation.
 - `shared/storage`: SQLDelight schema for the phone and desktop SQLite stores.
 - `apps/cli`: Linux-oriented Kotlin/JVM CLI with SQLite persistence, handoff,
-  conflict choice, and local backup policy.
+  conflict choice, local backup policy, and a keyboard-driven Lanterna TUI
+  opened by the bare `cofrinho` command.
 - `apps/android`: Android 16 Compose application shell for the adopted dark
   interface and offline flow.
 - `docs/design/mobile-preview.html`: clickable interface preview.
@@ -125,7 +126,15 @@ identity while changing file and alias labels.
 
 ## CLI examples
 
+Running `cofrinho` with no command opens the interactive terminal interface.
+Use `cofrinho --help` for automation-safe help, or use an explicit command as
+shown below. The TUI needs a real terminal; pipes and CI jobs should use an
+explicit command instead.
+
 ```text
+cofrinho
+cofrinho --db ./ledger.sqlite
+cofrinho --help
 ./gradlew :apps:cli:run --args='setup --currency BRL'
 ./gradlew :apps:cli:run --args='income add --name Salary --amount 3000 --from 2026-10'
 ./gradlew :apps:cli:run --args='expense add --amount 42.90'

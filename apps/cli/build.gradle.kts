@@ -14,6 +14,8 @@ dependencies {
     implementation("app.cash.sqldelight:sqlite-driver:2.0.2")
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("com.googlecode.lanterna:lanterna:3.1.2")
+    runtimeOnly("org.slf4j:slf4j-nop:1.7.36")
     testImplementation(kotlin("test"))
 }
 
@@ -35,6 +37,10 @@ tasks.register("packageLinuxX64") {
         check(jlink.isFile) { "Bundled JVM packaging requires JDK 17 jlink at '${jlink.absolutePath}'" }
         project.exec {
             commandLine(jlink.absolutePath, "--add-modules", "java.base,java.sql,java.logging,jdk.crypto.ec", "--strip-debug", "--no-man-pages", "--no-header-files", "--output", packageRoot.resolve("jre").absolutePath)
+        }
+        project.copy {
+            from(rootProject.file("docs/release/THIRD_PARTY_NOTICES.txt"))
+            into(packageRoot)
         }
         patchBundledLauncher(packageRoot.resolve("bin/cofrinho"))
     }

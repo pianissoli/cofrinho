@@ -7,12 +7,12 @@ import java.sql.DriverManager
 import java.time.Instant
 import java.time.LocalDate
 
-class BackupManager(private val database: Path) {
-    fun beforeOperation(kind: String) {
+class BackupManager(private val database: Path) : DesktopBackupPort {
+    override fun beforeOperation(kind: String) {
         copy("pre-$kind-${stamp()}.sqlite", pinned = false)
     }
 
-    fun preserveConflict(contents: String, label: String) {
+    override fun preserveConflict(contents: String, label: String) {
         val directory = directory()
         Files.createDirectories(directory)
         val name = "conflict-$label-${stamp()}.cofrinho"
@@ -20,16 +20,16 @@ class BackupManager(private val database: Path) {
         Files.writeString(directory.resolve("$name.pinned"), "pinned")
     }
 
-    fun preserveLocalConflict() {
+    override fun preserveLocalConflict() {
         copy("conflict-local-${stamp()}.sqlite", pinned = true)
     }
 
-    fun ordinaryBackups(): List<Path> {
+    override fun ordinaryBackups(): List<Path> {
         if (!Files.isDirectory(directory())) return emptyList()
         return Files.list(directory()).use { stream -> stream.filter { it.fileName.toString().endsWith(".sqlite") }.sorted().toList() }
     }
 
-    fun afterFinancialEdit() {
+    override fun afterFinancialEdit() {
         val directory = directory()
         Files.createDirectories(directory)
         val prefix = "daily-${LocalDate.now()}"

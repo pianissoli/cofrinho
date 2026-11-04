@@ -120,7 +120,8 @@ different application ID require exporting and importing their ledger.
 2. Builds `cofrinho-build` and runs the repository's `check` task.
 3. Packages the Linux x86_64 CLI with its bundled JRE.
 4. Runs CLI operations in an Ubuntu container with no system Java and an invalid
-   `JAVA_HOME`, including SQLite and export/import checks.
+   `JAVA_HOME`, including SQLite and export/import checks, then drives the
+   default TUI through a real 80x24 pseudo-terminal.
 5. Decodes the secret keystore outside the checkout and mounts it read-only.
 6. Builds the release APK using Android Gradle Plugin's runtime signing options.
 7. Deletes the temporary keystore even if signing fails.

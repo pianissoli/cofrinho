@@ -2,9 +2,7 @@ package cofrinho.cli
 
 import cofrinho.finance.CalendarRules
 import cofrinho.finance.ExpenseStatus
-import cofrinho.finance.IdentifierSource
 import cofrinho.finance.Ledger
-import cofrinho.finance.LedgerClock
 import cofrinho.finance.LedgerService
 import cofrinho.finance.MoneyRules
 import cofrinho.finance.PaymentMethod
@@ -18,9 +16,6 @@ import kotlinx.serialization.json.put
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 import java.util.UUID
 
 class CofrinhoCli(private val databasePath: Path) {
@@ -28,17 +23,17 @@ class CofrinhoCli(private val databasePath: Path) {
         val args = arguments.toMutableList()
         val db = option(args, "--db")?.let(Path::of) ?: databasePath
         val command = args.removeFirstOrNull() ?: return printHelp()
+        if (command !in setOf("setup", "budget", "expense", "income", "transfer", "backup")) throw CliException("Unknown command '$command'; expected setup, budget, expense, income, transfer, or backup")
         Files.createDirectories(db.toAbsolutePath().parent)
         if (command == "setup") return setup(db, args)
-        val store = JdbcLedgerStore(db)
-        val backups = BackupManager(db)
-        when (command) {
-            "budget" -> showBudget(store, args)
-            "expense" -> expense(store, backups, args)
-            "income" -> income(store, backups, args)
-            "transfer" -> transfer(store, backups, args)
-            "backup" -> backup(store, backups, args)
-            else -> printHelp()
+        DesktopLedgerSession.open(db).use { session ->
+            when (command) {
+                "budget" -> showBudget(session, args)
+                "expense" -> expense(session.store, session.backups, args)
+                "income" -> income(session.store, session.backups, args)
+                "transfer" -> transfer(session.store, session.backups, args)
+                "backup" -> backup(session.store, session.backups, args)
+            }
         }
     }
 
@@ -47,19 +42,21 @@ class CofrinhoCli(private val databasePath: Path) {
         val scale = option(args, "--scale")?.toIntOrNull() ?: 2
         if (!currency.matches(Regex("[A-Z]{3}"))) throw CliException("Invalid currency '$currency'; expected an uppercase three-letter code")
         if (scale !in 0..6) throw CliException("Invalid currency scale '$scale'; expected 0-6")
-        val store = JdbcLedgerStore(db)
-        if (runCatching { store.read() }.isSuccess) throw CliException("Ledger '$db' already exists; expected a new or uninitialized database")
-        val ledger = Ledger(UUID.randomUUID().toString(), currency, scale)
-        store.replace(ledger)
-        store.writeTransferState(TransferState(revision = ledger.revision))
+        LedgerLock.acquire(db.toAbsolutePath().normalize()).use {
+            val store = JdbcLedgerStore(db)
+            if (runCatching { store.read() }.isSuccess) throw CliException("Ledger '$db' already exists; expected a new or uninitialized database")
+            val ledger = Ledger(UUID.randomUUID().toString(), currency, scale)
+            store.replace(ledger)
+            store.writeTransferState(TransferState(revision = ledger.revision))
+        }
         println("Created Cofrinho ledger at ${db.toAbsolutePath()} ($currency, scale $scale)")
     }
 
-    private fun showBudget(store: JdbcLedgerStore, args: MutableList<String>) {
+    private fun showBudget(session: DesktopLedgerSession, args: MutableList<String>) {
         requireCommand(args, "show")
         val month = requireOption(args, "--month")
-        val summary = LedgerService(store, SystemClock, Uuids).summary(month)
-        val scale = store.read().currencyScale
+        val summary = session.summary(month)
+        val scale = session.store.read().currencyScale
         if (args.remove("--json")) return printBudgetJson(summary, scale)
         println("Budget for $month")
         println("  planned income  ${money(summary.budgetMinor, scale)}")
@@ -74,7 +71,7 @@ class CofrinhoCli(private val databasePath: Path) {
         summary.dailySpending.forEach { day -> println("  ${day.date} ${bar(day.amountMinor, summary.spentMinor)} ${money(day.amountMinor, scale)}") }
     }
 
-    private fun expense(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
+    private fun expense(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
         val operation = args.removeFirstOrNull() ?: throw CliException("Missing expense operation; expected add, plan, record, edit, reopen, reschedule, cancel, delete, or list")
         if (operation == "list") return listExpenses(store, args)
         requireEditable(store)
@@ -86,30 +83,30 @@ class CofrinhoCli(private val databasePath: Path) {
         }
     }
 
-    private fun deleteExpense(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
-        LedgerService(store, SystemClock, Uuids).deleteExpense(requireOption(args, "--id"))
-        backups.afterFinancialEdit()
+    private fun deleteExpense(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
+        LedgerService(store, DesktopClock, DesktopIdentifiers).deleteExpense(requireOption(args, "--id"))
+        reportBackup(backups)
         println("Expense deleted")
     }
 
-    private fun editExpense(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
-        val service = LedgerService(store, SystemClock, Uuids)
+    private fun editExpense(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
+        val service = LedgerService(store, DesktopClock, DesktopIdentifiers)
         val id = requireOption(args, "--id")
         val amount = option(args, "--amount")?.let { MoneyRules.parseMinor(it, store.read().currencyScale) }
         val current = store.read().expenses.find { it.id == id } ?: throw CliException("Unknown expense '$id'; expected an existing expense ID")
         val updated = if (current.status == ExpenseStatus.PLANNED) service.editPlannedExpense(id, amount, option(args, "--expected-date"), optionalPayment(args), option(args, "--description")) else service.editExpense(id, amount, option(args, "--date"), optionalPayment(args), option(args, "--description"))
-        backups.afterFinancialEdit()
+        reportBackup(backups)
         println("${updated.status.name.lowercase()} expense ${updated.id} · ${money(updated.amountMinor, store.read().currencyScale)}")
     }
 
-    private fun reopenExpense(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
-        val updated = LedgerService(store, SystemClock, Uuids).reopenRecordedExpense(requireOption(args, "--id"), amount(args, store), requireOption(args, "--expected-date"), optionalPayment(args))
-        backups.afterFinancialEdit()
+    private fun reopenExpense(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
+        val updated = LedgerService(store, DesktopClock, DesktopIdentifiers).reopenRecordedExpense(requireOption(args, "--id"), amount(args, store), requireOption(args, "--expected-date"), optionalPayment(args))
+        reportBackup(backups)
         println("planned expense ${updated.id} · ${money(updated.amountMinor, store.read().currencyScale)}")
     }
 
-    private fun mutateExpense(store: JdbcLedgerStore, backups: BackupManager, operation: String, args: MutableList<String>) {
-        val service = LedgerService(store, SystemClock, Uuids)
+    private fun mutateExpense(store: JdbcLedgerStore, backups: DesktopBackupPort, operation: String, args: MutableList<String>) {
+        val service = LedgerService(store, DesktopClock, DesktopIdentifiers)
         val result = when (operation) {
             "add" -> service.addExpense(amount(args, store), option(args, "--date"), payment(args), option(args, "--description"))
             "plan" -> service.planExpense(amount(args, store), requireOption(args, "--expected-date"), payment(args), option(args, "--description"))
@@ -118,7 +115,7 @@ class CofrinhoCli(private val databasePath: Path) {
             "cancel" -> service.cancelPlan(requireOption(args, "--id"))
             else -> throw CliException("Unknown expense operation '$operation'; expected add, plan, record, edit, reopen, reschedule, cancel, delete, or list")
         }
-        backups.afterFinancialEdit()
+        reportBackup(backups)
         println("${result.status.name.lowercase()} expense ${result.id} · ${money(result.amountMinor, store.read().currencyScale)}")
     }
 
@@ -135,10 +132,10 @@ class CofrinhoCli(private val databasePath: Path) {
         }
     }
 
-    private fun income(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
+    private fun income(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
         requireEditable(store)
         val operation = args.removeFirstOrNull() ?: throw CliException("Missing income operation; expected add, change, override, clear-override, or archive")
-        val service = LedgerService(store, SystemClock, Uuids)
+        val service = LedgerService(store, DesktopClock, DesktopIdentifiers)
         when (operation) {
             "add" -> service.addIncomeSource(requireOption(args, "--name"), amount(args, store), requireOption(args, "--from"))
             "change" -> service.changeRecurringIncome(requireOption(args, "--id"), amount(args, store), requireOption(args, "--from"))
@@ -147,11 +144,11 @@ class CofrinhoCli(private val databasePath: Path) {
             "archive" -> service.stopIncome(requireOption(args, "--id"), requireOption(args, "--from"))
             else -> throw CliException("Unknown income operation '$operation'; expected add, change, override, clear-override, or archive")
         }
-        backups.afterFinancialEdit()
+        reportBackup(backups)
         println("Income $operation saved")
     }
 
-    private fun transfer(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
+    private fun transfer(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
         val operation = args.removeFirstOrNull() ?: throw CliException("Missing transfer operation; expected export, import, or resume")
         when (operation) {
             "export" -> exportLedger(store, args)
@@ -161,7 +158,7 @@ class CofrinhoCli(private val databasePath: Path) {
         }
     }
 
-    private fun backup(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
+    private fun backup(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
         when (args.removeFirstOrNull()) {
             "list" -> backups.ordinaryBackups().forEach(::println)
             "retry" -> { backups.afterFinancialEdit(); println("Daily backup complete") }
@@ -170,7 +167,7 @@ class CofrinhoCli(private val databasePath: Path) {
         }
     }
 
-    private fun restoreBackup(store: JdbcLedgerStore, backups: BackupManager, source: Path, confirmed: Boolean) {
+    private fun restoreBackup(store: JdbcLedgerStore, backups: DesktopBackupPort, source: Path, confirmed: Boolean) {
         if (!confirmed) throw CliException("Restoring backup '$source' requires --use-backup after review")
         if (!Files.isRegularFile(source)) throw CliException("Backup '$source' does not exist; expected a readable SQLite backup file")
         val restored = JdbcLedgerStore(source).read()
@@ -188,7 +185,7 @@ class CofrinhoCli(private val databasePath: Path) {
         } else {
             requireEditable(store)
             val ledger = store.read()
-            val snapshot = PortableLedgerCodec.snapshot(ledger, UUID.randomUUID().toString(), state.checkpointId, SystemClock.nowUtc())
+            val snapshot = PortableLedgerCodec.snapshot(ledger, UUID.randomUUID().toString(), state.checkpointId, DesktopClock.nowUtc())
             PortableLedgerCodec.encode(snapshot).also { payload ->
                 val digest = sha256(payload)
                 store.writeTransferState(TransferState(snapshot.checkpointId, snapshot.parentCheckpointId, digest, ledger.revision, true, payload))
@@ -200,7 +197,7 @@ class CofrinhoCli(private val databasePath: Path) {
         println("Exported ${destination.toAbsolutePath()}")
     }
 
-    private fun importLedger(store: JdbcLedgerStore, backups: BackupManager, args: MutableList<String>) {
+    private fun importLedger(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
         val source = Path.of(requireOption(args, "--file"))
         val useImport = args.remove("--use-import")
         val keepLocal = args.remove("--keep-local")
@@ -306,8 +303,15 @@ class CofrinhoCli(private val databasePath: Path) {
         println(result)
     }
 
-    private fun printHelp() = println("""
+}
+
+private class CliException(message: String) : IllegalArgumentException(message)
+
+fun printHelp() = println("""
 Cofrinho offline ledger
+  cofrinho                         open the interactive terminal interface
+  cofrinho --db PATH               open PATH in the interactive interface
+  cofrinho --help                  show this help without opening a ledger
   setup --currency BRL [--scale 2]
   budget show --month YYYY-MM [--json]
   expense add --amount 42.90 [--date YYYY-MM-DD] [--payment credit|debit] [--description text]
@@ -331,17 +335,10 @@ Cofrinho offline ledger
   backup retry
   backup restore --file PATH --use-backup
 """.trimIndent())
-}
 
-private object SystemClock : LedgerClock {
-    override fun today(): String = LocalDate.now(ZoneId.systemDefault()).toString()
-    override fun nowUtc(): String = Instant.now().toString()
+private fun reportBackup(backups: DesktopBackupPort) {
+    runCatching { backups.afterFinancialEdit() }
+        .onFailure { warning -> println("Warning: financial edit saved, but backup failed: ${warning.message ?: "unknown backup error"}") }
 }
-
-private object Uuids : IdentifierSource {
-    override fun next(): String = UUID.randomUUID().toString()
-}
-
-private class CliException(message: String) : IllegalArgumentException(message)
 
 private fun sha256(contents: String): String = MessageDigest.getInstance("SHA-256").digest(contents.toByteArray()).joinToString("") { "%02x".format(it) }
