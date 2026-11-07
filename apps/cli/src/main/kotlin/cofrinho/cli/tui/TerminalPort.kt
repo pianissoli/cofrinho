@@ -69,7 +69,6 @@ class LanternaTerminal(private val terminal: Terminal) : TerminalPort {
         KeyType.Delete -> TerminalKey(TerminalKeyKind.DELETE)
         KeyType.PageUp -> TerminalKey(TerminalKeyKind.PAGE_UP)
         KeyType.PageDown -> TerminalKey(TerminalKeyKind.PAGE_DOWN)
-        KeyType.Resize -> TerminalKey(TerminalKeyKind.RESIZE)
         KeyType.EOF -> TerminalKey(TerminalKeyKind.EOF)
         else -> TerminalKey(TerminalKeyKind.OTHER)
     }
