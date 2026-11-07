@@ -102,46 +102,7 @@ jobs:
           tui_db="$RUNNER_TEMP/cofrinho-cli-smoke/tui.sqlite"
           "$cli" --db "$tui_db" setup --currency BRL
           "$cli" --db "$tui_db" income add --name Salary --amount 3000 --from 2026-11
-          python3 - "$cli" "$tui_db" <<'PY'
-          import os
-          import pty
-          import select
-          import sys
-          import time
-
-          cli, database = sys.argv[1:]
-          environment = os.environ.copy()
-          environment["TERM"] = "xterm-256color"
-          environment["JAVA_HOME"] = "/missing-system-java"
-
-          def invoke(keys):
-              pid, descriptor = pty.fork()
-              if pid == 0:
-                  os.execve(cli, [cli, "--db", database], environment)
-              import fcntl
-              import struct
-              import termios
-              fcntl.ioctl(descriptor, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
-              os.write(descriptor, keys)
-              deadline = time.monotonic() + 15
-              while time.monotonic() < deadline:
-                  ready, _, _ = select.select([descriptor], [], [], 0.2)
-                  if ready:
-                      try:
-                          os.read(descriptor, 4096)
-                      except OSError:
-                          pass
-                  result, status = os.waitpid(pid, os.WNOHANG)
-                  if result:
-                      if status != 0:
-                          raise SystemExit(f"TUI exited with status {status}")
-                      return
-              os.kill(pid, 9)
-              raise SystemExit("TUI did not exit within 15 seconds")
-
-          invoke(b"q")
-          invoke(b"n10\t\t\t\t\nq")
-          PY
+          python3 scripts/cli_tui_pty_smoke.py "$cli" "$tui_db"
           "$cli" --db "$tui_db" budget show --month 2026-11 --json > "$RUNNER_TEMP/cofrinho-cli-smoke/tui.json"
           jq --exit-status '.spent == "10.00" and .budget == "3000.00"' \
             "$RUNNER_TEMP/cofrinho-cli-smoke/tui.json"

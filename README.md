@@ -79,6 +79,8 @@ repository signing secrets once, then push a version tag such as `v0.1.0`.
 The Android release workflow runs checks, packages and smoke-tests the CLI,
 signs the APK with the existing key, verifies its signature, and publishes all
 artifacts with SHA-256 checksums.
+The non-publishing `CLI TUI checks` workflow runs the same CLI/TUI validation
+on master pushes and pull requests.
 
 To publish the next patch release from a clean `master` checkout, run
 `python3 scripts/bump.py`. The script increments the project version, Android

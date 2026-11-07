@@ -1,0 +1,58 @@
+name: CLI TUI checks
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-tui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cli-tui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Build Docker toolchain
+        run: docker build --tag cofrinho-build .
+
+      - name: Run tests and package the CLI
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:/workspace" \
+            cofrinho-build check :apps:cli:packageLinuxX64
+
+      - name: Extract package under a path containing spaces
+        run: |
+          mkdir -p "$RUNNER_TEMP/cofrinho-tui-smoke/extracted package"
+          tar -C apps/cli/build/package \
+            -czf "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-cli.tar.gz" \
+            cofrinho-linux-x86_64
+          tar -xzf "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-cli.tar.gz" \
+            -C "$RUNNER_TEMP/cofrinho-tui-smoke/extracted package"
+
+      - name: Run packaged CLI and TUI smoke tests
+        run: |
+          cli="$RUNNER_TEMP/cofrinho-tui-smoke/extracted package/cofrinho-linux-x86_64/bin/cofrinho"
+          database="$RUNNER_TEMP/cofrinho-tui-smoke/ledger.sqlite"
+          "$cli" --db "$database" setup --currency BRL
+          "$cli" --db "$database" income add --name Salary --amount 3000 --from 2026-11
+          python3 scripts/cli_tui_pty_smoke.py "$cli" "$database"
+          JAVA_HOME=/missing-system-java "$cli" --db "$database" budget show --month 2026-11 --json > "$RUNNER_TEMP/cofrinho-tui-smoke/budget.json"
+          jq --exit-status '.budget == "3000.00" and .spent == "10.00"' \
+            "$RUNNER_TEMP/cofrinho-tui-smoke/budget.json"
