@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "cofrinho"
-version = "0.1.1"
+version = "0.1.2"
 
 subprojects {
     listOf("com.android.application", "com.android.library").forEach { androidPluginId ->
