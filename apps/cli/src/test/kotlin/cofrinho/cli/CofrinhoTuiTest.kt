@@ -51,6 +51,27 @@ class CofrinhoTuiTest {
     }
 
     @Test
+    fun corruptedDatabaseShowsRecoveryErrorInsteadOfSetup(): Unit = withTemporaryDirectory("cofrinho-tui-corrupt-") { directory ->
+        val database = directory.resolve("ledger.sqlite")
+        Files.writeString(database, "not a SQLite database")
+        val terminal = RecordingTerminal(listOf(character('q')))
+        CofrinhoTui(database, { terminal }, MutableClock("2026-11-03"), FakeBackupPort()).run()
+        assertTrue(terminal.transcript().contains("Could not open Cofrinho ledger"))
+        assertTrue(terminal.transcript().contains("Press q or Escape to exit"))
+        assertTrue(!terminal.transcript().contains("first-run setup"))
+    }
+
+    @Test
+    fun repeatedSaveKeyDoesNotDuplicateExpense(): Unit = withTemporaryDirectory("cofrinho-tui-duplicate-") { directory ->
+        val database = directory.resolve("ledger.sqlite")
+        writeLedger(database, Ledger("ledger", "BRL", 2))
+        val keys = setupAndSaveKeys("10").toMutableList()
+        keys.add(keys.lastIndex, enter())
+        CofrinhoTui(database, { RecordingTerminal(keys) }, MutableClock("2026-11-03"), FakeBackupPort()).run()
+        assertEquals(1, JdbcLedgerStore(database).read().expenses.size)
+    }
+
+    @Test
     fun explicitDateAndDebitPaymentArePreserved(): Unit = withTemporaryDirectory("cofrinho-tui-date-") { directory ->
         val database = directory.resolve("ledger.sqlite")
         writeLedger(database, Ledger("ledger", "BRL", 2))

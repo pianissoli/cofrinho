@@ -20,7 +20,7 @@ fun main(args: Array<String>) {
     }
 }
 
-private data class LaunchArguments(
+internal data class LaunchArguments(
     val database: Path,
     val command: String?,
     val remaining: List<String>,
@@ -41,8 +41,10 @@ private data class LaunchArguments(
     }
 }
 
-private object TerminalAvailability {
-    fun isUsable(): Boolean = System.console() != null && System.getenv("TERM")?.isNotBlank() == true
+internal object TerminalAvailability {
+    fun isUsable(): Boolean = isUsable(System.console() != null, System.getenv("TERM"))
+
+    fun isUsable(consoleAvailable: Boolean, terminalName: String?): Boolean = consoleAvailable && !terminalName.isNullOrBlank()
 }
 
 object DefaultPaths {
