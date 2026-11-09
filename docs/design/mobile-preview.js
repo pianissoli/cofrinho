@@ -14,7 +14,7 @@ function previewLocalDate(instant) {
 }
 
 /**
- * Fill fresh-entry defaults, leaving saved expense and plan dates intact.
+ * Fill fresh-entry defaults, leaving explicitly chosen dates intact.
  * @example fillPreviewCurrentDates(expenseSheet, new Date(2026, 9, 30));
  * @param {ParentNode} scope
  * @param {Date} instant

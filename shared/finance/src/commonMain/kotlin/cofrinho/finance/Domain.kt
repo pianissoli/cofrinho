@@ -2,8 +2,6 @@ package cofrinho.finance
 
 enum class PaymentMethod { CREDIT, DEBIT }
 
-enum class ExpenseStatus { PLANNED, RECORDED, CANCELLED }
-
 data class IncomeSource(
     val id: String,
     val name: String,
@@ -24,14 +22,41 @@ data class IncomeOverride(
     val amountMinor: Long,
 )
 
+data class RecurringExpense(
+    val id: String,
+    val name: String,
+    val stoppedFromMonth: String? = null,
+)
+
+data class RecurringExpenseSchedule(
+    val id: String,
+    val recurringExpenseId: String,
+    val startsMonth: String,
+    val amountMinor: Long,
+    val paymentMethod: PaymentMethod = PaymentMethod.CREDIT,
+)
+
+data class RecurringExpenseOverride(
+    val id: String,
+    val recurringExpenseId: String,
+    val budgetMonth: String,
+    val amountMinor: Long,
+)
+
 data class Expense(
     val id: String,
     val amountMinor: Long,
-    val status: ExpenseStatus,
-    val expectedOn: String?,
-    val occurredOn: String?,
+    val occurredOn: String,
     val paymentMethod: PaymentMethod,
-    val description: String?,
+    val description: String? = null,
+)
+
+data class ResolvedRecurringExpense(
+    val id: String,
+    val name: String,
+    val budgetMonth: String,
+    val amountMinor: Long,
+    val paymentMethod: PaymentMethod,
 )
 
 data class Ledger(
@@ -41,6 +66,9 @@ data class Ledger(
     val sources: List<IncomeSource> = emptyList(),
     val schedules: List<IncomeSchedule> = emptyList(),
     val overrides: List<IncomeOverride> = emptyList(),
+    val recurringExpenses: List<RecurringExpense> = emptyList(),
+    val recurringExpenseSchedules: List<RecurringExpenseSchedule> = emptyList(),
+    val recurringExpenseOverrides: List<RecurringExpenseOverride> = emptyList(),
     val expenses: List<Expense> = emptyList(),
     val revision: Long = 0,
 )
@@ -49,13 +77,18 @@ data class BudgetSummary(
     val month: String,
     val budgetMinor: Long,
     val spentMinor: Long,
-    val reservedMinor: Long,
+    val recurringMinor: Long,
     val dailySpending: List<DailySpending> = emptyList(),
     val creditSpentMinor: Long = 0,
     val debitSpentMinor: Long = 0,
 ) {
-    val remainingMinor: Long get() = checkedSubtract(budgetMinor, spentMinor)
-    val availableMinor: Long get() = checkedSubtract(remainingMinor, reservedMinor)
+    val usedMinor: Long get() = checkedAdd(spentMinor, recurringMinor)
+    val availableMinor: Long get() = checkedSubtract(budgetMinor, usedMinor)
+
+    private fun checkedAdd(left: Long, right: Long): Long {
+        if (right > 0 && left > Long.MAX_VALUE - right) throw FinanceException("Amount overflow '$left + $right'; expected signed 64-bit minor units")
+        return left + right
+    }
 
     private fun checkedSubtract(left: Long, right: Long): Long {
         if (right > 0 && left < Long.MIN_VALUE + right) throw FinanceException("Amount underflow '$left - $right'; expected signed 64-bit minor units")

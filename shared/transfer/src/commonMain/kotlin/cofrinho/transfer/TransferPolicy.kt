@@ -27,7 +27,7 @@ class TransferPolicy {
             return ImportInspection(ImportDecision.NO_OP, "Checkpoint already imported", ledger)
         }
         if (current == null) return ImportInspection(ImportDecision.ADOPT, "Empty installation", ledger)
-        if (current.sources.isEmpty() && current.expenses.isEmpty() && current.revision == 0L) return ImportInspection(ImportDecision.ADOPT, "Empty ledger", ledger)
+        if (current.sources.isEmpty() && current.expenses.isEmpty() && current.recurringExpenses.isEmpty() && current.revision == 0L) return ImportInspection(ImportDecision.ADOPT, "Empty ledger", ledger)
         if (current.id != incoming.ledgerId) throw FinanceException("Ledger '${incoming.ledgerId}' does not match current ledger '${current.id}'; expected the same ledger ID")
         if (current.currencyCode != incoming.currencyCode || current.currencyScale != incoming.currencyScale) throw FinanceException("Currency '${incoming.currencyCode}/${incoming.currencyScale}' does not match current ledger; expected ${current.currencyCode}/${current.currencyScale}")
         if (checkpoint?.checkpointId == incoming.checkpointId) {

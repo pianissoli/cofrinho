@@ -105,7 +105,7 @@ def _require_success(status: int, output: bytes) -> None:
 def main() -> int:
     arguments = _arguments()
     _invoke(arguments.cli, arguments.database, b"q")
-    _invoke(arguments.cli, arguments.database, b"n10\t\t\t\t\nq")
+    _invoke(arguments.cli, arguments.database, b"hljn10\t\t\t\t\nrjq")
     print("Packaged TUI PTY smoke test passed")
     return 0
 

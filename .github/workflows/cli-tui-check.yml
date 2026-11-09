@@ -52,7 +52,8 @@ jobs:
           database="$RUNNER_TEMP/cofrinho-tui-smoke/ledger.sqlite"
           "$cli" --db "$database" setup --currency BRL
           "$cli" --db "$database" income add --name Salary --amount 3000 --from 2026-11
+          "$cli" --db "$database" recurring add --name Rent --amount 100 --from 2026-11
           python3 scripts/cli_tui_pty_smoke.py "$cli" "$database"
           JAVA_HOME=/missing-system-java "$cli" --db "$database" budget show --month 2026-11 --json > "$RUNNER_TEMP/cofrinho-tui-smoke/budget.json"
-          jq --exit-status '.budget == "3000.00" and .spent == "10.00"' \
+          jq --exit-status '.budget == "3000.00" and .spent == "10.00" and .recurring == "100.00" and .available == "2890.00"' \
             "$RUNNER_TEMP/cofrinho-tui-smoke/budget.json"

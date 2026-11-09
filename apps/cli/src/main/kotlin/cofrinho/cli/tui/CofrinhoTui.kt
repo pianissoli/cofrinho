@@ -10,6 +10,7 @@ import cofrinho.finance.Ledger
 import cofrinho.finance.LedgerClock
 import cofrinho.finance.MoneyRules
 import cofrinho.finance.PaymentMethod
+import com.googlecode.lanterna.TerminalSize
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.YearMonth
@@ -25,9 +26,15 @@ class CofrinhoTui(
     private var session: DesktopLedgerSession? = null
     private var screen: TuiScreen = TuiScreen.OVERVIEW
     private var form: ExpenseDraft? = null
+    private var recurringForm: RecurringDraft? = null
     private var setup: SetupDraft? = null
     private var month: YearMonth = YearMonth.parse(clock.today().substring(0, 7))
     private var selectedExpense: Int = 0
+    private var expenseViewportStart: Int = 0
+    private var selectedRecurring: Int = 0
+    private var recurringViewportStart: Int = 0
+    private var lastSize: TerminalSize? = null
+    private var frameSize: TerminalSize = TerminalSize(80, 24)
     private var notice: String? = null
     private var fatalError: String? = null
     private var running = true
@@ -64,29 +71,34 @@ class CofrinhoTui(
     }
 
     private fun defaultBackups(): DesktopBackupPort = cofrinho.cli.BackupManager(databasePath)
-
     private fun render() {
         val activeTerminal = terminal ?: return
-        activeTerminal.clear()
         val size = activeTerminal.size()
+        frameSize = size
+        if (lastSize != size) {
+            activeTerminal.clear()
+            lastSize = size
+        }
         if (size.columns < 80 || size.rows < 24) {
             line(0, "Terminal too small: target 80x24; resize to continue. Your input is kept.")
+            activeTerminal.flush()
+            return
         }
         when {
             fatalError != null -> renderFatal()
             screen == TuiScreen.SETUP -> renderSetup()
             screen == TuiScreen.EXPENSE -> renderExpense()
+            screen == TuiScreen.RECURRING -> renderRecurring()
+            screen == TuiScreen.RECURRING_FORM -> renderRecurringForm()
             else -> renderOverview()
         }
         activeTerminal.flush()
     }
-
     private fun renderFatal() {
         line(2, "Could not open Cofrinho ledger")
         line(4, trim(fatalError ?: "Unknown error"))
         line(6, "Press q or Escape to exit.")
     }
-
     private fun renderSetup() {
         val draft = setup ?: return
         line(2, "Cofrinho first-run setup")
@@ -99,7 +111,6 @@ class CofrinhoTui(
         footer("Tab focus · Enter confirm · Escape cancel")
         if (draft.error != null) line(15, "Error: ${draft.error}")
     }
-
     private fun renderOverview() {
         val activeSession = session ?: return
         val summary = runCatching { activeSession.summary(month.toString()) }.getOrElse {
@@ -108,26 +119,42 @@ class CofrinhoTui(
         }
         val expenses = activeSession.monthExpenses(summary.month)
         selectedExpense = selectedExpense.coerceIn(0, (expenses.size - 1).coerceAtLeast(0))
+        val capacity = (activeTerminalSizeRows() - 16).coerceAtLeast(1)
+        expenseViewportStart = viewportStart(expenses.size, selectedExpense, expenseViewportStart, capacity)
         line(2, "Cofrinho · ${summary.month}")
-        line(4, "Planned income  ${money(summary.budgetMinor)}")
-        line(5, "Spent           ${money(summary.spentMinor)}  ${bar(summary.spentMinor, summary.budgetMinor)}")
-        line(6, "Reserved        ${money(summary.reservedMinor)}  ${bar(summary.reservedMinor, summary.budgetMinor)}")
-        line(7, "Remaining       ${money(summary.remainingMinor)}")
+        line(4, "Income          ${money(summary.budgetMinor)}")
+        line(5, "Recurring       ${money(summary.recurringMinor)}  ${bar(summary.recurringMinor, summary.budgetMinor)}")
+        line(6, "Variable        ${money(summary.spentMinor)}  ${bar(summary.spentMinor, summary.budgetMinor)}")
+        line(7, "Used            ${money(summary.usedMinor)}")
         line(8, "Available       ${money(summary.availableMinor)}")
         line(9, "Status          ${status(summary.budgetMinor, summary.availableMinor)}")
-        line(11, "Expenses")
+        line(11, "Variable expenses (${if (expenses.isEmpty()) "0" else "${expenseViewportStart + 1}-${minOf(expenseViewportStart + capacity, expenses.size)}"}/${expenses.size})")
         if (expenses.isEmpty()) line(13, "No expenses in this month.")
-        expenses.take(7).forEachIndexed { index, expense -> renderExpenseRow(13 + index, expense, index == selectedExpense) }
+        expenses.drop(expenseViewportStart).take(capacity).forEachIndexed { index, expense -> renderExpenseRow(13 + index, expense, index + expenseViewportStart == selectedExpense) }
         if (notice != null) line(20, "Notice: ${trim(notice!!)}")
-        footer("↑↓ select · n new expense · PgUp/PgDown month · q quit")
+        footer("↑↓/jk select · ←→/hl month · n expense · r recurring · PgUp/PgDown month · q quit")
     }
-
+    private fun renderRecurring() {
+        val activeSession = session ?: return
+        val recurring = activeSession.service.resolvedRecurringExpenses(month.toString())
+        selectedRecurring = selectedRecurring.coerceIn(0, (recurring.size - 1).coerceAtLeast(0))
+        val capacity = (activeTerminalSizeRows() - 11).coerceAtLeast(1)
+        recurringViewportStart = viewportStart(recurring.size, selectedRecurring, recurringViewportStart, capacity)
+        line(2, "Recurring expenses · ${month}")
+        line(4, "Register once; each active month reduces Available.")
+        if (recurring.isEmpty()) line(6, "No recurring expenses.")
+        recurring.drop(recurringViewportStart).take(capacity).forEachIndexed { index, expense ->
+            val marker = if (index + recurringViewportStart == selectedRecurring) ">" else " "
+            line(6 + index, "$marker ${expense.name.padEnd(20)} ${money(expense.amountMinor).padStart(12)} / month ${expense.paymentMethod.name.lowercase()}")
+        }
+        line(19, "a add · c change · o override · x clear · s stop")
+        footer("↑↓/jk select · ←→/hl month · Escape overview · q quit")
+    }
     private fun renderExpenseRow(row: Int, expense: Expense, selected: Boolean) {
-        val date = expense.expectedOn ?: expense.occurredOn.orEmpty()
+        val date = expense.occurredOn
         val marker = if (selected) ">" else " "
-        line(row, "$marker ${date.padEnd(10)} ${expense.status.name.lowercase().padEnd(9)} ${money(expense.amountMinor).padStart(12)} ${expense.paymentMethod.name.lowercase().padEnd(6)} ${expense.description.orEmpty()}")
+        line(row, "$marker ${date.padEnd(10)} ${money(expense.amountMinor).padStart(12)} ${expense.paymentMethod.name.lowercase().padEnd(6)} ${expense.description.orEmpty()}")
     }
-
     private fun renderExpense() {
         val draft = form ?: return
         line(2, "New expense")
@@ -142,13 +169,14 @@ class CofrinhoTui(
         footer("Tab focus · Enter confirm · Escape cancel · type in focused field")
         if (draft.error != null) line(15, "Error: ${draft.error}")
     }
-
     private fun handle(key: TerminalKey?) {
         if (key == null || key.kind == TerminalKeyKind.EOF) return stop()
         if (fatalError != null) return handleFatal(key)
         when (screen) {
             TuiScreen.SETUP -> handleSetup(key)
             TuiScreen.EXPENSE -> handleExpense(key)
+            TuiScreen.RECURRING -> handleRecurring(key)
+            TuiScreen.RECURRING_FORM -> handleRecurringForm(key)
             TuiScreen.OVERVIEW -> handleOverview(key)
         }
     }
@@ -162,11 +190,168 @@ class CofrinhoTui(
         when {
             key.isCharacter('q') -> stop()
             key.isCharacter('n') -> openExpense(activeSession)
+            key.isCharacter('r') -> { screen = TuiScreen.RECURRING; notice = null }
+            key.isCharacter('h') || key.kind == TerminalKeyKind.LEFT -> month = month.minusMonths(1)
+            key.isCharacter('l') || key.kind == TerminalKeyKind.RIGHT -> month = month.plusMonths(1)
             key.kind == TerminalKeyKind.PAGE_UP -> month = month.minusMonths(1)
             key.kind == TerminalKeyKind.PAGE_DOWN -> month = month.plusMonths(1)
-            key.kind == TerminalKeyKind.UP -> selectedExpense = (selectedExpense - 1).coerceAtLeast(0)
-            key.kind == TerminalKeyKind.DOWN -> selectedExpense++
+            key.isCharacter('k') || key.kind == TerminalKeyKind.UP -> selectedExpense = (selectedExpense - 1).coerceAtLeast(0)
+            key.isCharacter('j') || key.kind == TerminalKeyKind.DOWN -> selectedExpense++
             key.kind == TerminalKeyKind.ENTER -> notice = "Select n to record a new expense."
+        }
+    }
+
+    private fun handleRecurring(key: TerminalKey) {
+        val activeSession = session ?: return
+        val recurring = activeSession.service.resolvedRecurringExpenses(month.toString())
+        when {
+            key.isCharacter('q') -> stop()
+            key.kind == TerminalKeyKind.ESCAPE -> screen = TuiScreen.OVERVIEW
+            key.isCharacter('h') || key.kind == TerminalKeyKind.LEFT -> month = month.minusMonths(1)
+            key.isCharacter('l') || key.kind == TerminalKeyKind.RIGHT -> month = month.plusMonths(1)
+            key.kind == TerminalKeyKind.PAGE_UP -> month = month.minusMonths(1)
+            key.kind == TerminalKeyKind.PAGE_DOWN -> month = month.plusMonths(1)
+            key.isCharacter('a') -> openRecurringForm()
+            key.isCharacter('k') || key.kind == TerminalKeyKind.UP -> selectedRecurring = (selectedRecurring - 1).coerceAtLeast(0)
+            key.isCharacter('j') || key.kind == TerminalKeyKind.DOWN -> selectedRecurring = (selectedRecurring + 1).coerceAtMost((recurring.size - 1).coerceAtLeast(0))
+            key.isCharacter('c') -> openRecurringChange(recurring)
+            key.isCharacter('o') -> openRecurringOverride(recurring)
+            key.isCharacter('x') -> clearRecurringOverride(recurring)
+            key.isCharacter('s') -> stopRecurring(recurring)
+        }
+    }
+
+    private fun openRecurringForm() {
+        try {
+            session?.requireEditable() ?: return
+            recurringForm = RecurringDraft(RecurringFormMode.ADD, null, month.toString())
+            screen = TuiScreen.RECURRING_FORM
+        } catch (error: Exception) {
+            notice = error.message ?: "Ledger is read-only"
+        }
+    }
+
+    private fun openRecurringChange(items: List<cofrinho.finance.ResolvedRecurringExpense>) {
+        val selected = items.getOrNull(selectedRecurring) ?: return
+        try {
+            val activeSession = session ?: return
+            activeSession.requireEditable()
+            recurringForm = RecurringDraft(
+                RecurringFormMode.CHANGE,
+                selected.id,
+                month.toString(),
+                selected.amountMinor.takeIf { it > 0 }?.let { MoneyRules.formatMinor(it, activeSession.store.read().currencyScale) }.orEmpty(),
+                selected.paymentMethod,
+            )
+            screen = TuiScreen.RECURRING_FORM
+        } catch (error: Exception) {
+            notice = error.message ?: "Ledger is read-only"
+        }
+    }
+
+    private fun openRecurringOverride(items: List<cofrinho.finance.ResolvedRecurringExpense>) {
+        val selected = items.getOrNull(selectedRecurring) ?: return
+        try {
+            val activeSession = session ?: return
+            activeSession.requireEditable()
+            recurringForm = RecurringDraft(
+                RecurringFormMode.OVERRIDE,
+                selected.id,
+                month.toString(),
+                MoneyRules.formatMinor(selected.amountMinor, activeSession.store.read().currencyScale),
+            )
+            screen = TuiScreen.RECURRING_FORM
+        } catch (error: Exception) {
+            notice = error.message ?: "Ledger is read-only"
+        }
+    }
+
+    private fun clearRecurringOverride(items: List<cofrinho.finance.ResolvedRecurringExpense>) {
+        val selected = items.getOrNull(selectedRecurring) ?: return
+        runRecurringMutation("Recurring override cleared") { service ->
+            service.clearRecurringExpenseOverride(selected.id, month.toString())
+        }
+    }
+
+    private fun stopRecurring(items: List<cofrinho.finance.ResolvedRecurringExpense>) {
+        val selected = items.getOrNull(selectedRecurring) ?: return
+        val fromMonth = month.plusMonths(1).toString()
+        runRecurringMutation("Recurring expense stopped from $fromMonth") { service ->
+            service.stopRecurringExpense(selected.id, fromMonth)
+        }
+    }
+
+    private fun runRecurringMutation(message: String, mutation: (cofrinho.finance.LedgerService) -> Unit) {
+        try {
+            val activeSession = session ?: return
+            activeSession.requireEditable()
+            mutation(activeSession.service)
+            notice = backupNotice(activeSession, message)
+        } catch (error: Exception) {
+            notice = error.message ?: "Unable to update recurring expense"
+        }
+    }
+
+    private fun backupNotice(activeSession: DesktopLedgerSession, message: String): String {
+        val warning = runCatching { activeSession.backups.afterFinancialEdit() }.exceptionOrNull()?.message
+        return if (warning == null) message else "$message; backup warning: $warning"
+    }
+
+    private fun renderRecurringForm() {
+        val draft = recurringForm ?: return
+        line(2, when (draft.mode) { RecurringFormMode.ADD -> "New recurring expense"; RecurringFormMode.CHANGE -> "Change recurring expense"; RecurringFormMode.OVERRIDE -> "Override one month" })
+        if (draft.mode == RecurringFormMode.ADD) field(4, "Name", draft.name, draft.focus == 0)
+        field(5, "Amount", draft.amount, draft.focus == if (draft.mode == RecurringFormMode.ADD) 1 else 0)
+        field(6, if (draft.mode == RecurringFormMode.OVERRIDE) "Budget month" else "Starting month", draft.fromMonth, draft.focus == if (draft.mode == RecurringFormMode.ADD) 2 else 1)
+        if (draft.mode != RecurringFormMode.OVERRIDE) field(7, "Payment", draft.payment.name.lowercase(), draft.focus == if (draft.mode == RecurringFormMode.ADD) 3 else 2)
+        val saveFocus = draft.focusCount - 2
+        val cancelFocus = draft.focusCount - 1
+        line(9, if (draft.focus == saveFocus) "> [ Save ]" else "  [ Save ]")
+        line(10, if (draft.focus == cancelFocus) "> [ Cancel ]" else "  [ Cancel ]")
+        footer("Tab focus · Enter confirm · Escape cancel · type in focused field")
+        if (draft.error != null) line(15, "Error: ${draft.error}")
+    }
+
+    private fun handleRecurringForm(key: TerminalKey) {
+        val draft = recurringForm ?: return
+        val paymentFocus = if (draft.mode == RecurringFormMode.ADD) 3 else 2
+        val saveFocus = draft.focusCount - 2
+        val cancelFocus = draft.focusCount - 1
+        when {
+            key.kind == TerminalKeyKind.TAB -> draft.focus = (draft.focus + 1) % draft.focusCount
+            key.kind == TerminalKeyKind.BACKTAB -> draft.focus = (draft.focus + draft.focusCount - 1) % draft.focusCount
+            key.kind == TerminalKeyKind.LEFT && draft.focus == paymentFocus -> { draft.payment = PaymentMethod.DEBIT; draft.paymentTouched = true }
+            key.kind == TerminalKeyKind.RIGHT && draft.focus == paymentFocus -> { draft.payment = PaymentMethod.CREDIT; draft.paymentTouched = true }
+            key.isCharacter('h') && draft.focus == paymentFocus -> { draft.payment = PaymentMethod.DEBIT; draft.paymentTouched = true }
+            key.isCharacter('l') && draft.focus == paymentFocus -> { draft.payment = PaymentMethod.CREDIT; draft.paymentTouched = true }
+            key.isCharacter('k') && draft.focus >= paymentFocus -> draft.focus = (draft.focus + draft.focusCount - 1) % draft.focusCount
+            key.isCharacter('j') && draft.focus >= paymentFocus -> draft.focus = (draft.focus + 1) % draft.focusCount
+            key.kind == TerminalKeyKind.UP -> draft.focus = (draft.focus + draft.focusCount - 1) % draft.focusCount
+            key.kind == TerminalKeyKind.DOWN -> draft.focus = (draft.focus + 1) % draft.focusCount
+            key.kind == TerminalKeyKind.ESCAPE -> { recurringForm = null; screen = TuiScreen.RECURRING }
+            key.kind == TerminalKeyKind.ENTER && draft.focus == saveFocus -> saveRecurring(draft)
+            key.kind == TerminalKeyKind.ENTER && draft.focus == cancelFocus -> { recurringForm = null; screen = TuiScreen.RECURRING }
+            key.kind == TerminalKeyKind.BACKSPACE -> draft.backspace()
+            key.kind == TerminalKeyKind.CHARACTER -> draft.append(key.character ?: return, session?.store?.read()?.currencyScale ?: 2)
+        }
+    }
+
+    private fun saveRecurring(draft: RecurringDraft) {
+        try {
+            val activeSession = session ?: return
+            activeSession.requireEditable()
+            val amount = MoneyRules.parseMinor(draft.amount, activeSession.store.read().currencyScale)
+            CalendarRules.requireMonth(draft.fromMonth)
+            when (draft.mode) {
+                RecurringFormMode.ADD -> { MoneyRules.requirePositive(amount, "recurring expense amount"); activeSession.service.addRecurringExpense(draft.name, amount, draft.fromMonth, draft.payment) }
+                RecurringFormMode.CHANGE -> activeSession.service.changeRecurringExpense(draft.recurringExpenseId ?: error("Missing recurring expense ID"), amount, draft.fromMonth, draft.payment.takeIf { draft.paymentTouched })
+                RecurringFormMode.OVERRIDE -> activeSession.service.overrideRecurringExpense(draft.recurringExpenseId ?: error("Missing recurring expense ID"), draft.fromMonth, amount)
+            }
+            notice = backupNotice(activeSession, "Recurring expense saved.")
+            recurringForm = null
+            screen = TuiScreen.RECURRING
+        } catch (error: Exception) {
+            draft.error = error.message ?: "Invalid recurring expense"
         }
     }
 
@@ -221,13 +406,17 @@ class CofrinhoTui(
             key.kind == TerminalKeyKind.BACKTAB -> draft.focus = (draft.focus + 5) % 6
             key.kind == TerminalKeyKind.LEFT && draft.focus == 3 -> draft.changePayment(PaymentMethod.DEBIT)
             key.kind == TerminalKeyKind.RIGHT && draft.focus == 3 -> draft.changePayment(PaymentMethod.CREDIT)
+            key.isCharacter('h') && draft.focus == 3 -> draft.changePayment(PaymentMethod.DEBIT)
+            key.isCharacter('l') && draft.focus == 3 -> draft.changePayment(PaymentMethod.CREDIT)
+            key.isCharacter('k') && draft.focus >= 3 -> draft.focus = (draft.focus + 5) % 6
+            key.isCharacter('j') && draft.focus >= 3 -> draft.focus = (draft.focus + 1) % 6
             key.kind == TerminalKeyKind.UP -> draft.focus = (draft.focus + 5) % 6
             key.kind == TerminalKeyKind.DOWN -> draft.focus = (draft.focus + 1) % 6
             key.kind == TerminalKeyKind.ESCAPE -> requestDiscard(draft)
             key.kind == TerminalKeyKind.ENTER && draft.focus == 4 -> saveExpense(draft)
             key.kind == TerminalKeyKind.ENTER && draft.focus == 5 -> requestDiscard(draft)
             key.kind == TerminalKeyKind.BACKSPACE -> draft.backspace()
-            key.kind == TerminalKeyKind.CHARACTER -> draft.append(key.character ?: return)
+            key.kind == TerminalKeyKind.CHARACTER -> draft.append(key.character ?: return, session?.store?.read()?.currencyScale ?: 2)
         }
     }
 
@@ -273,8 +462,9 @@ class CofrinhoTui(
 
     private fun line(row: Int, value: String) {
         val activeTerminal = terminal ?: return
-        if (row >= activeTerminal.size().rows) return
-        activeTerminal.write(0, row, trim(value))
+        if (row >= frameSize.rows) return
+        val width = frameSize.columns.coerceAtLeast(1)
+        activeTerminal.write(0, row, trim(value).padEnd(width, ' '))
     }
 
     private fun field(row: Int, label: String, value: String, focused: Boolean) {
@@ -283,8 +473,10 @@ class CofrinhoTui(
 
     private fun footer(value: String) = line(22, value)
 
+    private fun activeTerminalSizeRows(): Int = frameSize.rows
+
     private fun trim(value: String): String {
-        val columns = terminal?.size()?.columns ?: 80
+        val columns = frameSize.columns
         return if (value.length <= columns) value else value.take(columns.coerceAtLeast(1))
     }
 
@@ -300,72 +492,11 @@ class CofrinhoTui(
         if (value <= 0 || total <= 0) return ""
         return "[" + "#".repeat((value.toDouble() / total * 20).toInt().coerceIn(1, 20)) + "]"
     }
-}
 
-private enum class TuiScreen { SETUP, OVERVIEW, EXPENSE }
-
-private class SetupDraft {
-    var currency: String = "BRL"
-    var scale: String = "2"
-    var focus: Int = 0
-    var error: String? = null
-
-    fun append(character: Char) {
-        if (focus == 0 && currency.length < 3) currency += character.uppercaseChar()
-        if (focus == 1 && scale.length < 1 && character.isDigit()) scale += character
-        error = null
-    }
-
-    fun backspace() {
-        if (focus == 0 && currency.isNotEmpty()) currency = currency.dropLast(1)
-        if (focus == 1 && scale.isNotEmpty()) scale = scale.dropLast(1)
-        error = null
+    private fun viewportStart(size: Int, selected: Int, current: Int, capacity: Int): Int {
+        if (size <= capacity) return 0
+        if (selected < current) return selected
+        if (selected >= current + capacity) return selected - capacity + 1
+        return current.coerceIn(0, size - capacity)
     }
 }
-
-private class ExpenseDraft(today: String) {
-    var amount: String = ""
-    var description: String = ""
-    var date: String = today
-    var payment: PaymentMethod = PaymentMethod.CREDIT
-    var focus: Int = 0
-    var dateTouched: Boolean = false
-    var dirty: Boolean = false
-    var confirmation: Boolean = false
-    var error: String? = null
-
-    fun append(character: Char) {
-        when (focus) {
-            0 -> amount += character
-            1 -> description += character
-            2 -> {
-                date += character
-                dateTouched = true
-            }
-            3 -> if (character.equals('d', true)) payment = PaymentMethod.DEBIT else if (character.equals('c', true)) payment = PaymentMethod.CREDIT
-        }
-        dirty = dirty || focus < 4
-        error = null
-    }
-
-    fun changePayment(method: PaymentMethod) {
-        payment = method
-        dirty = true
-        error = null
-    }
-
-    fun backspace() {
-        when (focus) {
-            0 -> amount = amount.dropLast(1)
-            1 -> description = description.dropLast(1)
-            2 -> {
-                date = date.dropLast(1)
-                dateTouched = true
-            }
-        }
-        dirty = true
-        error = null
-    }
-}
-
-private fun TerminalKey.isCharacter(expected: Char): Boolean = kind == TerminalKeyKind.CHARACTER && character?.equals(expected, true) == true

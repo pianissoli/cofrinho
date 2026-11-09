@@ -78,8 +78,8 @@ jobs:
               "$cli" --help
               "$cli" --db /smoke/source.sqlite setup --currency BRL
               "$cli" --db /smoke/source.sqlite income add --name Salary --amount 3000 --from 2026-11
+              "$cli" --db /smoke/source.sqlite recurring add --name Rent --amount 100 --from 2026-11
               "$cli" --db /smoke/source.sqlite expense add --amount 10 --date 2026-11-02
-              "$cli" --db /smoke/source.sqlite expense plan --amount 100 --expected-date 2026-11-20
               "$cli" --db /smoke/source.sqlite budget show --month 2026-11 --json > /smoke/before.json
               "$cli" --db /smoke/source.sqlite transfer export --file /smoke/outbound.cofrinho
               "$cli" --db /smoke/target.sqlite setup --currency BRL
@@ -91,7 +91,7 @@ jobs:
             '
 
           jq --exit-status \
-            '.budget == "3000.00" and .spent == "10.00" and .reserved == "100.00" and .available == "2890.00"' \
+            '.budget == "3000.00" and .spent == "10.00" and .recurring == "100.00" and .used == "110.00" and .available == "2890.00"' \
             "$RUNNER_TEMP/cofrinho-cli-smoke/before.json"
           cmp "$RUNNER_TEMP/cofrinho-cli-smoke/before.json" "$RUNNER_TEMP/cofrinho-cli-smoke/imported.json"
           cmp "$RUNNER_TEMP/cofrinho-cli-smoke/before.json" "$RUNNER_TEMP/cofrinho-cli-smoke/after.json"
@@ -102,9 +102,10 @@ jobs:
           tui_db="$RUNNER_TEMP/cofrinho-cli-smoke/tui.sqlite"
           "$cli" --db "$tui_db" setup --currency BRL
           "$cli" --db "$tui_db" income add --name Salary --amount 3000 --from 2026-11
+          "$cli" --db "$tui_db" recurring add --name Rent --amount 100 --from 2026-11
           python3 scripts/cli_tui_pty_smoke.py "$cli" "$tui_db"
           "$cli" --db "$tui_db" budget show --month 2026-11 --json > "$RUNNER_TEMP/cofrinho-cli-smoke/tui.json"
-          jq --exit-status '.spent == "10.00" and .budget == "3000.00"' \
+          jq --exit-status '.spent == "10.00" and .recurring == "100.00" and .available == "2890.00" and .budget == "3000.00"' \
             "$RUNNER_TEMP/cofrinho-cli-smoke/tui.json"
 
       - name: Sign release APK

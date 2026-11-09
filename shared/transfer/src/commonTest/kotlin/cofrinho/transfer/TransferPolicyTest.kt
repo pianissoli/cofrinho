@@ -1,6 +1,7 @@
 package cofrinho.transfer
 
 import cofrinho.finance.Ledger
+import cofrinho.finance.RecurringExpense
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -43,5 +44,14 @@ class TransferPolicyTest {
         val current = Ledger("local", "BRL", 2, revision = 1)
         val incoming = PortableLedgerCodec.snapshot(Ledger("other", "BRL", 2), "checkpoint", null, "2026-10-30T12:00:00Z")
         assertFailsWith<Exception> { TransferPolicy().inspect(current, null, incoming, "digest") }
+    }
+
+    @Test
+    fun recurringOnlyLedgerIsNotTreatedAsEmpty() {
+        val recurring = RecurringExpense("rent", "Rent")
+        val current = Ledger("ledger", "BRL", 2, recurringExpenses = listOf(recurring), revision = 0)
+        val incoming = PortableLedgerCodec.snapshot(Ledger("ledger", "BRL", 2), "checkpoint", null, "2026-10-30T12:00:00Z")
+        val inspection = TransferPolicy().inspect(current, null, incoming, "digest")
+        assertEquals(ImportDecision.CONFLICT, inspection.decision)
     }
 }

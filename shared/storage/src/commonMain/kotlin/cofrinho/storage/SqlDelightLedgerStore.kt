@@ -2,13 +2,15 @@ package cofrinho.storage
 
 import app.cash.sqldelight.db.SqlDriver
 import cofrinho.finance.Expense
-import cofrinho.finance.ExpenseStatus
 import cofrinho.finance.IncomeOverride
 import cofrinho.finance.IncomeSchedule
 import cofrinho.finance.IncomeSource
 import cofrinho.finance.Ledger
 import cofrinho.finance.LedgerStore
 import cofrinho.finance.PaymentMethod
+import cofrinho.finance.RecurringExpense
+import cofrinho.finance.RecurringExpenseOverride
+import cofrinho.finance.RecurringExpenseSchedule
 import cofrinho.finance.TransferState
 import cofrinho.storage.db.CofrinhoDatabase
 
@@ -19,17 +21,30 @@ class SqlDelightLedgerStore(driver: SqlDriver) : LedgerStore {
 
     init {
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        queries.insertSchemaMarker()
+        val generation = queries.selectSchemaMarker().executeAsOneOrNull()
+        check(generation == 3L) { "Incompatible ledger schema generation '$generation'; expected 3" }
     }
 
     override fun read(): Ledger {
         val metadata = queries.selectLedger().executeAsOneOrNull() ?: error("Ledger is not initialized; complete setup first")
-        return Ledger(metadata.ledger_id, metadata.currency_code, metadata.currency_scale.toInt(), readSources(), readSchedules(), readOverrides(), readExpenses(), metadata.revision)
+        return Ledger(
+            id = metadata.ledger_id,
+            currencyCode = metadata.currency_code,
+            currencyScale = metadata.currency_scale.toInt(),
+            sources = readSources(),
+            schedules = readSchedules(),
+            overrides = readOverrides(),
+            recurringExpenses = readRecurringExpenses(),
+            recurringExpenseSchedules = readRecurringExpenseSchedules(),
+            recurringExpenseOverrides = readRecurringExpenseOverrides(),
+            expenses = readExpenses(),
+            revision = metadata.revision,
+        )
     }
 
     override fun replace(ledger: Ledger) {
-        database.transaction {
-            replaceRows(ledger)
-        }
+        database.transaction { replaceRows(ledger) }
     }
 
     override fun replaceWithTransferState(ledger: Ledger, state: TransferState) {
@@ -53,9 +68,7 @@ class SqlDelightLedgerStore(driver: SqlDriver) : LedgerStore {
     }
 
     override fun writeTransferState(state: TransferState) {
-        database.transaction {
-            writeTransferStateRows(state)
-        }
+        database.transaction { writeTransferStateRows(state) }
     }
 
     override fun readTransferReceipts(): Map<String, String> = queries.selectTransferReceipts().executeAsList().associate { it.checkpoint_id to it.payload_digest }
@@ -66,6 +79,9 @@ class SqlDelightLedgerStore(driver: SqlDriver) : LedgerStore {
 
     private fun replaceRows(ledger: Ledger) {
         queries.deleteExpenses()
+        queries.deleteRecurringExpenseOverrides()
+        queries.deleteRecurringExpenseSchedules()
+        queries.deleteRecurringExpenses()
         queries.deleteOverrides()
         queries.deleteSchedules()
         queries.deleteSources()
@@ -74,7 +90,10 @@ class SqlDelightLedgerStore(driver: SqlDriver) : LedgerStore {
         ledger.sources.forEach { queries.insertSource(it.id, it.name, it.stoppedFromMonth) }
         ledger.schedules.forEach { queries.insertSchedule(it.id, it.sourceId, it.startsMonth, it.amountMinor) }
         ledger.overrides.forEach { queries.insertOverride(it.id, it.sourceId, it.budgetMonth, it.amountMinor) }
-        ledger.expenses.forEach { expense -> queries.insertExpense(expense.id, expense.amountMinor, expense.status.name, expense.expectedOn, expense.occurredOn, expense.paymentMethod.name, expense.description) }
+        ledger.recurringExpenses.forEach { queries.insertRecurringExpense(it.id, it.name, it.stoppedFromMonth) }
+        ledger.recurringExpenseSchedules.forEach { schedule -> queries.insertRecurringExpenseSchedule(schedule.id, schedule.recurringExpenseId, schedule.startsMonth, schedule.amountMinor, schedule.paymentMethod.name) }
+        ledger.recurringExpenseOverrides.forEach { override -> queries.insertRecurringExpenseOverride(override.id, override.recurringExpenseId, override.budgetMonth, override.amountMinor) }
+        ledger.expenses.forEach { expense -> queries.insertExpense(expense.id, expense.amountMinor, expense.occurredOn, expense.paymentMethod.name, expense.description) }
     }
 
     private fun writeTransferStateRows(state: TransferState) {
@@ -88,5 +107,11 @@ class SqlDelightLedgerStore(driver: SqlDriver) : LedgerStore {
 
     private fun readOverrides(): List<IncomeOverride> = queries.selectOverrides().executeAsList().map { IncomeOverride(it.override_id, it.source_id, it.budget_month, it.amount_minor) }
 
-    private fun readExpenses(): List<Expense> = queries.selectExpenses().executeAsList().map { Expense(it.expense_id, it.amount_minor, ExpenseStatus.valueOf(it.status), it.expected_on, it.occurred_on, PaymentMethod.valueOf(it.payment_method), it.description) }
+    private fun readRecurringExpenses(): List<RecurringExpense> = queries.selectRecurringExpenses().executeAsList().map { RecurringExpense(it.recurring_expense_id, it.name, it.stopped_from_month) }
+
+    private fun readRecurringExpenseSchedules(): List<RecurringExpenseSchedule> = queries.selectRecurringExpenseSchedules().executeAsList().map { RecurringExpenseSchedule(it.schedule_id, it.recurring_expense_id, it.starts_month, it.amount_minor, PaymentMethod.valueOf(it.payment_method)) }
+
+    private fun readRecurringExpenseOverrides(): List<RecurringExpenseOverride> = queries.selectRecurringExpenseOverrides().executeAsList().map { RecurringExpenseOverride(it.override_id, it.recurring_expense_id, it.budget_month, it.amount_minor) }
+
+    private fun readExpenses(): List<Expense> = queries.selectExpenses().executeAsList().map { Expense(it.expense_id, it.amount_minor, it.occurred_on, PaymentMethod.valueOf(it.payment_method), it.description) }
 }

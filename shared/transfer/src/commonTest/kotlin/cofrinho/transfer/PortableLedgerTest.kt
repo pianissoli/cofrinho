@@ -1,9 +1,13 @@
 package cofrinho.transfer
 
-import cofrinho.finance.ExpenseStatus
+import cofrinho.finance.Expense
+import cofrinho.finance.IncomeSchedule
 import cofrinho.finance.IncomeSource
 import cofrinho.finance.Ledger
 import cofrinho.finance.PaymentMethod
+import cofrinho.finance.RecurringExpense
+import cofrinho.finance.RecurringExpenseOverride
+import cofrinho.finance.RecurringExpenseSchedule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -11,37 +15,65 @@ import kotlin.test.assertTrue
 
 class PortableLedgerTest {
     @Test
-    fun plannedAndRecurringRecordsRoundTrip() {
-        val ledger = Ledger("ledger", "BRL", 2, listOf(IncomeSource("source", "Salary")), schedules = listOf(cofrinho.finance.IncomeSchedule("schedule", "source", "2026-10", 250_000)), expenses = listOf(cofrinho.finance.Expense("expense", 100_000, ExpenseStatus.PLANNED, "2026-10-31", null, PaymentMethod.CREDIT, "Rent")))
+    fun recurringAndVariableRecordsRoundTrip() {
+        val source = IncomeSource("source", "Salary")
+        val recurring = RecurringExpense("rent", "Rent")
+        val ledger = Ledger(
+            id = "ledger",
+            currencyCode = "BRL",
+            currencyScale = 2,
+            sources = listOf(source),
+            schedules = listOf(IncomeSchedule("schedule", source.id, "2026-10", 250_000)),
+            recurringExpenses = listOf(recurring),
+            recurringExpenseSchedules = listOf(RecurringExpenseSchedule("rent-schedule", recurring.id, "2026-10", 100_000)),
+            expenses = listOf(Expense("expense", 10_000, "2026-10-31", PaymentMethod.CREDIT, "Market")),
+        )
         val snapshot = PortableLedgerCodec.snapshot(ledger, "checkpoint", null, "2026-10-30T12:00:00Z")
-        val restoredSnapshot: PortableLedger = PortableLedgerCodec.decode(PortableLedgerCodec.encode(snapshot))
-        val restored: Ledger = PortableLedgerCodec.ledger(restoredSnapshot)
-        assertEquals(snapshot, restoredSnapshot)
+        val restoredSnapshot = PortableLedgerCodec.decode(PortableLedgerCodec.encode(snapshot))
+        val restored = PortableLedgerCodec.ledger(restoredSnapshot)
+        assertEquals(2, restoredSnapshot.formatVersion)
         assertEquals(ledger.sources, restored.sources)
-        assertEquals(ledger.schedules, restored.schedules)
+        assertEquals(ledger.recurringExpenses, restored.recurringExpenses)
+        assertEquals(ledger.recurringExpenseSchedules, restored.recurringExpenseSchedules)
         assertEquals(ledger.expenses, restored.expenses)
         assertTrue(PortableLedgerCodec.encode(snapshot).contains("\"format_version\""))
     }
 
     @Test
+    fun formatOneIsRejected() {
+        val contents = """{"format_version":1,"ledger_id":"ledger","checkpoint_id":"checkpoint","exported_at":"2026-10-30T12:00:00Z","currency_code":"BRL","currency_scale":2,"income_sources":[],"income_schedules":[],"income_overrides":[],"recurring_expenses":[],"recurring_expense_schedules":[],"recurring_expense_overrides":[],"expenses":[]}"""
+        assertFailsWith<Exception> { PortableLedgerCodec.decode(contents) }
+    }
+
+    @Test
     fun invalidExpenseDatesFailBeforeImport() {
-        val ledger = PortableLedger(1, "ledger", "checkpoint", null, "2026-10-30T12:00:00Z", "BRL", 2, emptyList(), emptyList(), emptyList(), listOf(PortableExpense("expense", "100", "PLANNED", null, null, "CREDIT")))
-        assertFailsWith<Exception> { PortableLedgerCodec.decode(PortableLedgerCodec.encode(ledger)) }
+        val ledger = Ledger("ledger", "BRL", 2, expenses = listOf(Expense("expense", 100, "2026-02-30", PaymentMethod.CREDIT)))
+        assertFailsWith<Exception> { PortableLedgerCodec.encode(PortableLedgerCodec.snapshot(ledger, "checkpoint", null, "2026-10-30T12:00:00Z")) }
     }
 
     @Test
-    fun cancelledAndRecordedPlanStatesRoundTrip() {
-        val expenses = listOf(
-            cofrinho.finance.Expense("planned", 100, ExpenseStatus.CANCELLED, "2026-10-31", null, PaymentMethod.CREDIT, null),
-            cofrinho.finance.Expense("recorded", 200, ExpenseStatus.RECORDED, "2026-10-31", "2026-11-01", PaymentMethod.DEBIT, "paid"),
+    fun duplicateRecurringScheduleIdentityFailsValidation() {
+        val recurring = RecurringExpense("rent", "Rent")
+        val ledger = Ledger(
+            "ledger", "BRL", 2,
+            recurringExpenses = listOf(recurring),
+            recurringExpenseSchedules = listOf(
+                RecurringExpenseSchedule("first", recurring.id, "2026-10", 100),
+                RecurringExpenseSchedule("second", recurring.id, "2026-10", 200),
+            ),
         )
-        val snapshot = PortableLedgerCodec.snapshot(Ledger("ledger", "BRL", 2, expenses = expenses), "checkpoint", null, "2026-10-30T12:00:00Z")
-        assertEquals(expenses, PortableLedgerCodec.ledger(PortableLedgerCodec.decode(PortableLedgerCodec.encode(snapshot))).expenses)
+        assertFailsWith<Exception> { PortableLedgerCodec.encode(PortableLedgerCodec.snapshot(ledger, "checkpoint", null, "2026-10-30T12:00:00Z")) }
     }
 
     @Test
-    fun duplicateScheduleIdentityFailsValidation() {
-        val snapshot = PortableLedger(1, "ledger", "checkpoint", null, "2026-10-30T12:00:00Z", "BRL", 2, listOf(PortableSource("source", "Salary")), listOf(PortableSchedule("same", "source", "2026-10", "100"), PortableSchedule("same", "source", "2026-11", "100")), emptyList(), emptyList())
-        assertFailsWith<Exception> { PortableLedgerCodec.encode(snapshot) }
+    fun recurringOverrideBeforeFirstScheduleFailsValidation() {
+        val recurring = RecurringExpense("rent", "Rent")
+        val ledger = Ledger(
+            "ledger", "BRL", 2,
+            recurringExpenses = listOf(recurring),
+            recurringExpenseSchedules = listOf(RecurringExpenseSchedule("schedule", recurring.id, "2026-11", 100)),
+            recurringExpenseOverrides = listOf(RecurringExpenseOverride("override", recurring.id, "2026-10", 0)),
+        )
+        assertFailsWith<Exception> { PortableLedgerCodec.encode(PortableLedgerCodec.snapshot(ledger, "checkpoint", null, "2026-10-30T12:00:00Z")) }
     }
 }

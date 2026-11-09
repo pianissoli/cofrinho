@@ -1,3 +1,8 @@
+CREATE TABLE schema_marker (
+    marker_id INTEGER NOT NULL PRIMARY KEY CHECK(marker_id = 1),
+    generation INTEGER NOT NULL CHECK(generation = 3)
+);
+
 CREATE TABLE ledger_metadata (
     ledger_id TEXT NOT NULL PRIMARY KEY,
     currency_code TEXT NOT NULL,
@@ -27,18 +32,35 @@ CREATE TABLE income_override (
     UNIQUE(source_id, budget_month)
 );
 
+CREATE TABLE recurring_expense (
+    recurring_expense_id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    stopped_from_month TEXT
+);
+
+CREATE TABLE recurring_expense_schedule (
+    schedule_id TEXT NOT NULL PRIMARY KEY,
+    recurring_expense_id TEXT NOT NULL REFERENCES recurring_expense(recurring_expense_id),
+    starts_month TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+    payment_method TEXT NOT NULL CHECK(payment_method IN ('CREDIT', 'DEBIT')),
+    UNIQUE(recurring_expense_id, starts_month)
+);
+
+CREATE TABLE recurring_expense_override (
+    override_id TEXT NOT NULL PRIMARY KEY,
+    recurring_expense_id TEXT NOT NULL REFERENCES recurring_expense(recurring_expense_id),
+    budget_month TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL CHECK(amount_minor >= 0),
+    UNIQUE(recurring_expense_id, budget_month)
+);
+
 CREATE TABLE expense (
     expense_id TEXT NOT NULL PRIMARY KEY,
     amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
-    status TEXT NOT NULL CHECK(status IN ('PLANNED', 'RECORDED', 'CANCELLED')),
-    expected_on TEXT,
-    occurred_on TEXT,
+    occurred_on TEXT NOT NULL,
     payment_method TEXT NOT NULL CHECK(payment_method IN ('CREDIT', 'DEBIT')),
-    description TEXT,
-    CHECK(
-        (status IN ('PLANNED', 'CANCELLED') AND expected_on IS NOT NULL AND occurred_on IS NULL)
-        OR (status = 'RECORDED' AND occurred_on IS NOT NULL)
-    )
+    description TEXT
 );
 
 CREATE TABLE transfer_state (
@@ -64,10 +86,17 @@ CREATE TABLE transfer_receipt (
     payload_digest TEXT NOT NULL
 );
 
-CREATE INDEX expense_expected_on_index ON expense(expected_on);
-CREATE INDEX expense_occurred_on_index ON expense(occurred_on);
 CREATE INDEX income_schedule_starts_month_index ON income_schedule(starts_month);
 CREATE INDEX income_override_budget_month_index ON income_override(budget_month);
+CREATE INDEX recurring_expense_schedule_starts_month_index ON recurring_expense_schedule(starts_month);
+CREATE INDEX recurring_expense_override_budget_month_index ON recurring_expense_override(budget_month);
+CREATE INDEX expense_occurred_on_index ON expense(occurred_on);
+
+selectSchemaMarker:
+SELECT generation FROM schema_marker WHERE marker_id = 1;
+
+insertSchemaMarker:
+INSERT OR IGNORE INTO schema_marker(marker_id, generation) VALUES (1, 3);
 
 selectLedger:
 SELECT ledger_id, currency_code, currency_scale, revision FROM ledger_metadata;
@@ -81,8 +110,19 @@ SELECT schedule_id, source_id, starts_month, amount_minor FROM income_schedule;
 selectOverrides:
 SELECT override_id, source_id, budget_month, amount_minor FROM income_override;
 
+selectRecurringExpenses:
+SELECT recurring_expense_id, name, stopped_from_month FROM recurring_expense;
+
+selectRecurringExpenseSchedules:
+SELECT schedule_id, recurring_expense_id, starts_month, amount_minor, payment_method
+FROM recurring_expense_schedule;
+
+selectRecurringExpenseOverrides:
+SELECT override_id, recurring_expense_id, budget_month, amount_minor
+FROM recurring_expense_override;
+
 selectExpenses:
-SELECT expense_id, amount_minor, status, expected_on, occurred_on, payment_method, description FROM expense;
+SELECT expense_id, amount_minor, occurred_on, payment_method, description FROM expense;
 
 selectTransferState:
 SELECT checkpoint_id, parent_checkpoint_id, payload_digest, revision, handed_off, staged_payload
@@ -97,6 +137,15 @@ VALUES (1, ?, ?, ?, ?, ?, ?);
 
 deleteExpenses:
 DELETE FROM expense;
+
+deleteRecurringExpenseOverrides:
+DELETE FROM recurring_expense_override;
+
+deleteRecurringExpenseSchedules:
+DELETE FROM recurring_expense_schedule;
+
+deleteRecurringExpenses:
+DELETE FROM recurring_expense;
 
 deleteOverrides:
 DELETE FROM income_override;
@@ -123,9 +172,20 @@ INSERT INTO income_schedule(schedule_id, source_id, starts_month, amount_minor) 
 insertOverride:
 INSERT INTO income_override(override_id, source_id, budget_month, amount_minor) VALUES (?, ?, ?, ?);
 
+insertRecurringExpense:
+INSERT INTO recurring_expense(recurring_expense_id, name, stopped_from_month) VALUES (?, ?, ?);
+
+insertRecurringExpenseSchedule:
+INSERT INTO recurring_expense_schedule(schedule_id, recurring_expense_id, starts_month, amount_minor, payment_method)
+VALUES (?, ?, ?, ?, ?);
+
+insertRecurringExpenseOverride:
+INSERT INTO recurring_expense_override(override_id, recurring_expense_id, budget_month, amount_minor)
+VALUES (?, ?, ?, ?);
+
 insertExpense:
-INSERT INTO expense(expense_id, amount_minor, status, expected_on, occurred_on, payment_method, description)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO expense(expense_id, amount_minor, occurred_on, payment_method, description)
+VALUES (?, ?, ?, ?, ?);
 
 selectTransferReceipts:
 SELECT checkpoint_id, payload_digest FROM transfer_receipt;

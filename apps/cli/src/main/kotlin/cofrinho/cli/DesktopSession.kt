@@ -2,7 +2,6 @@ package cofrinho.cli
 
 import cofrinho.finance.BudgetSummary
 import cofrinho.finance.Expense
-import cofrinho.finance.ExpenseStatus
 import cofrinho.finance.IdentifierSource
 import cofrinho.finance.Ledger
 import cofrinho.finance.LedgerClock
@@ -42,10 +41,7 @@ class DesktopLedgerSession private constructor(
 
     fun summary(month: String): BudgetSummary = service.summary(month)
 
-    fun monthExpenses(month: String): List<Expense> = store.read().expenses.filter { expense ->
-        val date = if (expense.status == ExpenseStatus.PLANNED || expense.status == ExpenseStatus.CANCELLED) expense.expectedOn else expense.occurredOn
-        date?.startsWith(month) == true
-    }.sortedWith(compareBy<Expense> { it.expectedOn ?: it.occurredOn ?: "" }.thenBy { it.id })
+    fun monthExpenses(month: String): List<Expense> = store.read().expenses.filter { it.occurredOn.startsWith(month) }.sortedWith(compareBy<Expense> { it.occurredOn }.thenBy { it.id })
 
     fun addExpense(amountMinor: Long, date: String?, method: PaymentMethod, description: String?): SavedEdit<Expense> {
         requireEditable()

@@ -1,7 +1,6 @@
 package cofrinho.cli
 
 import cofrinho.finance.CalendarRules
-import cofrinho.finance.ExpenseStatus
 import cofrinho.finance.Ledger
 import cofrinho.finance.LedgerService
 import cofrinho.finance.MoneyRules
@@ -23,13 +22,15 @@ class CofrinhoCli(private val databasePath: Path) {
         val args = arguments.toMutableList()
         val db = option(args, "--db")?.let(Path::of) ?: databasePath
         val command = args.removeFirstOrNull() ?: return printHelp()
-        if (command !in setOf("setup", "budget", "expense", "income", "transfer", "backup")) throw CliException("Unknown command '$command'; expected setup, budget, expense, income, transfer, or backup")
+        val commands = setOf("setup", "budget", "expense", "recurring", "income", "transfer", "backup")
+        if (command !in commands) throw CliException("Unknown command '$command'; expected setup, budget, expense, recurring, income, transfer, or backup")
         Files.createDirectories(db.toAbsolutePath().parent)
         if (command == "setup") return setup(db, args)
         DesktopLedgerSession.open(db).use { session ->
             when (command) {
                 "budget" -> showBudget(session, args)
                 "expense" -> expense(session, args)
+                "recurring" -> recurring(session, args)
                 "income" -> income(session.store, session.backups, args)
                 "transfer" -> transfer(session.store, session.backups, args)
                 "backup" -> backup(session.store, session.backups, args)
@@ -44,8 +45,7 @@ class CofrinhoCli(private val databasePath: Path) {
         if (scale !in 0..6) throw CliException("Invalid currency scale '$scale'; expected 0-6")
         DesktopLedgerSession.open(db).use { session ->
             if (runCatching { session.store.read() }.isSuccess) throw CliException("Ledger '$db' already exists; expected a new or uninitialized database")
-            val ledger = Ledger(UUID.randomUUID().toString(), currency, scale)
-            session.initialize(ledger)
+            session.initialize(Ledger(UUID.randomUUID().toString(), currency, scale))
         }
         println("Created Cofrinho ledger at ${db.toAbsolutePath()} ($currency, scale $scale)")
     }
@@ -57,10 +57,10 @@ class CofrinhoCli(private val databasePath: Path) {
         val scale = session.store.read().currencyScale
         if (args.remove("--json")) return printBudgetJson(summary, scale)
         println("Budget for $month")
-        println("  planned income  ${money(summary.budgetMinor, scale)}")
-        println("  spent           ${money(summary.spentMinor, scale)}")
-        println("  reserved        ${money(summary.reservedMinor, scale)}")
-        println("  remaining       ${money(summary.remainingMinor, scale)}")
+        println("  income          ${money(summary.budgetMinor, scale)}")
+        println("  recurring       ${money(summary.recurringMinor, scale)}")
+        println("  variable        ${money(summary.spentMinor, scale)}")
+        println("  used            ${money(summary.usedMinor, scale)}")
         println("  available       ${money(summary.availableMinor, scale)}")
         if (summary.budgetMinor == 0L) println("  status          No budget defined")
         if (summary.availableMinor < 0L) println("  status          Overcommitted")
@@ -70,55 +70,31 @@ class CofrinhoCli(private val databasePath: Path) {
     }
 
     private fun expense(session: DesktopLedgerSession, args: MutableList<String>) {
-        val store = session.store
-        val backups = session.backups
-        val operation = args.removeFirstOrNull() ?: throw CliException("Missing expense operation; expected add, plan, record, edit, reopen, reschedule, cancel, delete, or list")
+        val operation = args.removeFirstOrNull() ?: throw CliException("Missing expense operation; expected add, edit, delete, or list")
         if (operation == "list") return listExpenses(session, args)
         session.requireEditable()
         when (operation) {
-            "delete" -> deleteExpense(store, backups, args)
-            "edit" -> editExpense(store, backups, args)
-            "reopen" -> reopenExpense(store, backups, args)
-            else -> mutateExpense(session, operation, args)
+            "add" -> {
+                val saved = session.addExpense(amount(args, session.store), option(args, "--date"), payment(args), option(args, "--description"))
+                reportSavedBackupWarning(saved.backupWarning)
+                println("expense ${saved.value.id} · ${money(saved.value.amountMinor, session.store.read().currencyScale)}")
+            }
+            "edit" -> editExpense(session, args)
+            "delete" -> {
+                session.service.deleteExpense(requireOption(args, "--id"))
+                reportBackup(session.backups)
+                println("Expense deleted")
+            }
+            else -> throw CliException("Unknown expense operation '$operation'; expected add, edit, delete, or list")
         }
     }
 
-    private fun deleteExpense(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
-        LedgerService(store, DesktopClock, DesktopIdentifiers).deleteExpense(requireOption(args, "--id"))
-        reportBackup(backups)
-        println("Expense deleted")
-    }
-
-    private fun editExpense(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
-        val service = LedgerService(store, DesktopClock, DesktopIdentifiers)
+    private fun editExpense(session: DesktopLedgerSession, args: MutableList<String>) {
         val id = requireOption(args, "--id")
-        val amount = option(args, "--amount")?.let { MoneyRules.parseMinor(it, store.read().currencyScale) }
-        val current = store.read().expenses.find { it.id == id } ?: throw CliException("Unknown expense '$id'; expected an existing expense ID")
-        val updated = if (current.status == ExpenseStatus.PLANNED) service.editPlannedExpense(id, amount, option(args, "--expected-date"), optionalPayment(args), option(args, "--description")) else service.editExpense(id, amount, option(args, "--date"), optionalPayment(args), option(args, "--description"))
-        reportBackup(backups)
-        println("${updated.status.name.lowercase()} expense ${updated.id} · ${money(updated.amountMinor, store.read().currencyScale)}")
-    }
-
-    private fun reopenExpense(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
-        val updated = LedgerService(store, DesktopClock, DesktopIdentifiers).reopenRecordedExpense(requireOption(args, "--id"), amount(args, store), requireOption(args, "--expected-date"), optionalPayment(args))
-        reportBackup(backups)
-        println("planned expense ${updated.id} · ${money(updated.amountMinor, store.read().currencyScale)}")
-    }
-
-    private fun mutateExpense(session: DesktopLedgerSession, operation: String, args: MutableList<String>) {
-        val store = session.store
-        val backups = session.backups
-        val service = session.service
-        val result = when (operation) {
-            "add" -> session.addExpense(amount(args, store), option(args, "--date"), payment(args), option(args, "--description")).also { reportSavedBackupWarning(it.backupWarning) }.value
-            "plan" -> service.planExpense(amount(args, store), requireOption(args, "--expected-date"), payment(args), option(args, "--description"))
-            "record" -> service.recordPlanned(requireOption(args, "--id"), amount(args, store), option(args, "--date"), optionalPayment(args))
-            "reschedule" -> service.reschedulePlan(requireOption(args, "--id"), requireOption(args, "--expected-date"))
-            "cancel" -> service.cancelPlan(requireOption(args, "--id"))
-            else -> throw CliException("Unknown expense operation '$operation'; expected add, plan, record, edit, reopen, reschedule, cancel, delete, or list")
-        }
-        if (operation != "add") reportBackup(backups)
-        println("${result.status.name.lowercase()} expense ${result.id} · ${money(result.amountMinor, store.read().currencyScale)}")
+        val amount = option(args, "--amount")?.let { MoneyRules.parseMinor(it, session.store.read().currencyScale) }
+        val updated = session.service.editExpense(id, amount, option(args, "--date"), optionalPayment(args), option(args, "--description"))
+        reportBackup(session.backups)
+        println("expense ${updated.id} · ${money(updated.amountMinor, session.store.read().currencyScale)}")
     }
 
     private fun listExpenses(session: DesktopLedgerSession, args: MutableList<String>) {
@@ -126,8 +102,33 @@ class CofrinhoCli(private val databasePath: Path) {
         CalendarRules.requireMonth(month)
         val ledger = session.store.read()
         session.monthExpenses(month).forEach { expense ->
-            val date = if (expense.status == ExpenseStatus.PLANNED || expense.status == ExpenseStatus.CANCELLED) expense.expectedOn else expense.occurredOn
-            println("${expense.id} ${expense.status.name.lowercase()} ${money(expense.amountMinor, ledger.currencyScale)} ${date.orEmpty()} ${expense.paymentMethod.name.lowercase()} ${expense.description.orEmpty()}")
+            println("${expense.id} ${money(expense.amountMinor, ledger.currencyScale)} ${expense.occurredOn} ${expense.paymentMethod.name.lowercase()} ${expense.description.orEmpty()}")
+        }
+    }
+
+    private fun recurring(session: DesktopLedgerSession, args: MutableList<String>) {
+        val operation = args.removeFirstOrNull() ?: throw CliException("Missing recurring operation; expected add, list, change, override, clear-override, or archive")
+        if (operation == "list") return listRecurring(session, args)
+        session.requireEditable()
+        val service = session.service
+        var savedId: String? = null
+        when (operation) {
+            "add" -> savedId = service.addRecurringExpense(requireOption(args, "--name"), amount(args, session.store), requireOption(args, "--from"), payment(args)).id
+            "change" -> savedId = service.changeRecurringExpense(requireOption(args, "--id"), amount(args, session.store), requireOption(args, "--from"), optionalPayment(args)).id
+            "override" -> savedId = service.overrideRecurringExpense(requireOption(args, "--id"), requireOption(args, "--month"), amount(args, session.store, allowZero = true)).id
+            "clear-override" -> service.clearRecurringExpenseOverride(requireOption(args, "--id"), requireOption(args, "--month"))
+            "archive" -> service.stopRecurringExpense(requireOption(args, "--id"), requireOption(args, "--from"))
+            else -> throw CliException("Unknown recurring operation '$operation'; expected add, list, change, override, clear-override, or archive")
+        }
+        reportBackup(session.backups)
+        println("Recurring expense $operation saved${savedId?.let { " · $it" }.orEmpty()}")
+    }
+
+    private fun listRecurring(session: DesktopLedgerSession, args: MutableList<String>) {
+        val month = requireOption(args, "--month")
+        val scale = session.store.read().currencyScale
+        session.service.resolvedRecurringExpenses(month).forEach { expense ->
+            println("${expense.id} ${expense.name} ${money(expense.amountMinor, scale)} ${expense.paymentMethod.name.lowercase()} $month")
         }
     }
 
@@ -148,12 +149,11 @@ class CofrinhoCli(private val databasePath: Path) {
     }
 
     private fun transfer(store: JdbcLedgerStore, backups: DesktopBackupPort, args: MutableList<String>) {
-        val operation = args.removeFirstOrNull() ?: throw CliException("Missing transfer operation; expected export, import, or resume")
-        when (operation) {
+        when (args.removeFirstOrNull()) {
             "export" -> exportLedger(store, args)
             "import" -> importLedger(store, backups, args)
             "resume" -> resumeEditing(store)
-            else -> throw CliException("Unknown transfer operation '$operation'; expected export, import, or resume")
+            else -> throw CliException("Missing transfer operation; expected export, import, or resume")
         }
     }
 
@@ -178,10 +178,7 @@ class CofrinhoCli(private val databasePath: Path) {
     private fun exportLedger(store: JdbcLedgerStore, args: MutableList<String>) {
         val destination = Path.of(requireOption(args, "--file"))
         val state = store.readTransferState()
-        val stagedPayload: String? = state.stagedPayload
-        val contents: String = if (state.handedOff && stagedPayload != null) {
-            stagedPayload
-        } else {
+        val contents = if (state.handedOff && state.stagedPayload != null) state.stagedPayload else {
             requireEditable(store)
             val ledger = store.read()
             val snapshot = PortableLedgerCodec.snapshot(ledger, UUID.randomUUID().toString(), state.checkpointId, DesktopClock.nowUtc())
@@ -206,7 +203,7 @@ class CofrinhoCli(private val databasePath: Path) {
         val digest = sha256(contents)
         rejectCheckpointReuse(state, incoming.checkpointId, digest)
         val checkpoint = state.checkpointId?.let { Checkpoint(it, state.parentCheckpointId, state.payloadDigest.orEmpty(), state.revision) }
-        val current: Ledger = store.read()
+        val current = store.read()
         val inspection = TransferPolicy().inspect(current, checkpoint, incoming, digest, store.readTransferReceipts())
         if (inspection.decision == ImportDecision.NO_OP) return println("This checkpoint was already imported; no changes made")
         requireChoice(inspection.decision, useImport, keepLocal)
@@ -256,20 +253,18 @@ class CofrinhoCli(private val databasePath: Path) {
     }
 
     private fun payment(args: MutableList<String>): PaymentMethod = optionalPayment(args) ?: PaymentMethod.CREDIT
-
     private fun optionalPayment(args: MutableList<String>): PaymentMethod? = option(args, "--payment")?.uppercase()?.let { runCatching { PaymentMethod.valueOf(it) }.getOrElse { throw CliException("Invalid payment method '$it'; expected credit or debit") } }
 
     private fun option(args: MutableList<String>, name: String): String? {
         val index = args.indexOf(name)
         if (index < 0) return null
         if (index + 1 >= args.size) throw CliException("Missing value after '$name'; expected an argument")
-        return args.removeAt(index).let { args.removeAt(index) }
+        args.removeAt(index)
+        return args.removeAt(index)
     }
 
     private fun requireOption(args: MutableList<String>, name: String): String = option(args, name) ?: throw CliException("Missing '$name'; expected a value")
-
     private fun requireCommand(args: MutableList<String>, expected: String) { if (args.removeFirstOrNull() != expected) throw CliException("Expected command '$expected'") }
-
     private fun money(value: Long, scale: Int): String = MoneyRules.formatMinor(value, scale)
 
     private fun nextRevision(current: Long): Long {
@@ -279,29 +274,23 @@ class CofrinhoCli(private val databasePath: Path) {
 
     private fun bar(value: Long, total: Long): String {
         if (value <= 0 || total <= 0) return ""
-        val width = (value / total.toDouble() * 20).toInt().coerceIn(1, 20)
-        return "#".repeat(width)
+        return "#".repeat((value / total.toDouble() * 20).toInt().coerceIn(1, 20))
     }
 
     private fun printBudgetJson(summary: cofrinho.finance.BudgetSummary, scale: Int) {
-        val result = buildJsonObject {
+        println(buildJsonObject {
+            put("report_version", 2)
             put("month", summary.month)
             put("budget", money(summary.budgetMinor, scale))
             put("spent", money(summary.spentMinor, scale))
-            put("reserved", money(summary.reservedMinor, scale))
-            put("remaining", money(summary.remainingMinor, scale))
+            put("recurring", money(summary.recurringMinor, scale))
+            put("used", money(summary.usedMinor, scale))
             put("available", money(summary.availableMinor, scale))
             put("credit", money(summary.creditSpentMinor, scale))
             put("debit", money(summary.debitSpentMinor, scale))
-            put("status", when {
-                summary.budgetMinor == 0L -> "NO_BUDGET"
-                summary.availableMinor < 0L -> "OVERCOMMITTED"
-                else -> "OK"
-            })
-        }
-        println(result)
+            put("status", when { summary.budgetMinor == 0L -> "NO_BUDGET"; summary.availableMinor < 0L -> "OVERCOMMITTED"; else -> "OK" })
+        })
     }
-
 }
 
 private class CliException(message: String) : IllegalArgumentException(message)
@@ -314,14 +303,15 @@ Cofrinho offline ledger
   setup --currency BRL [--scale 2]
   budget show --month YYYY-MM [--json]
   expense add --amount 42.90 [--date YYYY-MM-DD] [--payment credit|debit] [--description text]
-  expense plan --amount 1000 --expected-date YYYY-MM-DD [--payment credit|debit]
-  expense record --id ID --amount 950 [--date YYYY-MM-DD] [--payment credit|debit]
-  expense edit --id ID [--amount 42.90] [--date YYYY-MM-DD|--expected-date YYYY-MM-DD] [--payment credit|debit]
-  expense reopen --id ID --amount 42.90 --expected-date YYYY-MM-DD [--payment credit|debit]
-  expense reschedule --id ID --expected-date YYYY-MM-DD
-  expense cancel --id ID
+  expense edit --id ID [--amount 42.90] [--date YYYY-MM-DD] [--payment credit|debit]
   expense delete --id ID
   expense list --month YYYY-MM
+  recurring add --name Rent --amount 1000 --from YYYY-MM [--payment credit|debit]
+  recurring list --month YYYY-MM
+  recurring change --id ID --amount 1100 --from YYYY-MM [--payment credit|debit]
+  recurring override --id ID --month YYYY-MM --amount 0
+  recurring clear-override --id ID --month YYYY-MM
+  recurring archive --id ID --from YYYY-MM
   income add --name Salary --amount 3000 --from YYYY-MM
   income change --id ID --amount 3100 --from YYYY-MM
   income override --id ID --month YYYY-MM --amount 0
@@ -336,13 +326,11 @@ Cofrinho offline ledger
 """.trimIndent())
 
 private fun reportBackup(backups: DesktopBackupPort) {
-    runCatching { backups.afterFinancialEdit() }
-        .onFailure { warning -> reportBackupFailure(warning.message) }
+    runCatching { backups.afterFinancialEdit() }.onFailure { reportBackupFailure(it.message) }
 }
 
 private fun reportSavedBackupWarning(warning: String?) {
-    if (warning == null) return
-    reportBackupFailure(warning)
+    if (warning != null) reportBackupFailure(warning)
 }
 
 private fun reportBackupFailure(warning: String?) {

@@ -11,7 +11,7 @@ import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
 
-/** Linux SQLite adapter around the shared SQLDelight store. Example: JdbcLedgerStore(path).read(). */
+/** Linux SQLite adapter around the shared SQLDelight store. Example: JdbcLedgerStore(path). */
 class JdbcLedgerStore(private val path: Path) : LedgerStore {
     private val driver: JdbcSqliteDriver
     private val delegate: SqlDelightLedgerStore
@@ -19,7 +19,7 @@ class JdbcLedgerStore(private val path: Path) : LedgerStore {
     init {
         val newDatabase = !Files.exists(path) || Files.size(path) == 0L
         driver = JdbcSqliteDriver("jdbc:sqlite:${path.toAbsolutePath()}")
-        if (newDatabase) CofrinhoDatabase.Schema.create(driver) else migrateLegacySchema()
+        if (newDatabase) CofrinhoDatabase.Schema.create(driver) else validateExistingSchema()
         delegate = SqlDelightLedgerStore(driver)
     }
 
@@ -53,30 +53,24 @@ class JdbcLedgerStore(private val path: Path) : LedgerStore {
         connection.createStatement().use { it.execute("PRAGMA foreign_keys = ON") }
     }
 
-    private fun migrateLegacySchema() {
+    private fun validateExistingSchema() {
         connection().use { connection ->
-            connection.createStatement().use { statement -> statement.execute("PRAGMA foreign_keys = ON") }
-            addStagedPayloadColumn(connection)
-            connection.createStatement().use { it.execute("CREATE TABLE IF NOT EXISTS transfer_receipt(checkpoint_id TEXT PRIMARY KEY, payload_digest TEXT NOT NULL)") }
-            createIndexes(connection)
-        }
-    }
-
-    private fun addStagedPayloadColumn(connection: Connection) {
-        val columns = connection.createStatement().use { statement ->
-            statement.executeQuery("PRAGMA table_info(transfer_state)").use { rows ->
-                buildSet { while (rows.next()) add(rows.getString("name")) }
+            val tables = connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT name FROM sqlite_master WHERE type = 'table'").use { rows ->
+                    buildSet { while (rows.next()) add(rows.getString(1)) }
+                }
             }
+            val required = setOf("schema_marker", "ledger_metadata", "recurring_expense", "recurring_expense_schedule", "recurring_expense_override", "expense")
+            val missing = required - tables
+            if (missing.isNotEmpty()) throw incompatible("missing tables ${missing.sorted()}")
+            val generation = connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT generation FROM schema_marker WHERE marker_id = 1").use { rows ->
+                    if (!rows.next()) null else rows.getInt(1)
+                }
+            }
+            if (generation != 3) throw incompatible("schema generation '$generation', expected 3")
         }
-        if ("staged_payload" !in columns) connection.createStatement().use { it.execute("ALTER TABLE transfer_state ADD COLUMN staged_payload TEXT") }
     }
 
-    private fun createIndexes(connection: Connection) {
-        connection.createStatement().use { statement ->
-            statement.execute("CREATE INDEX IF NOT EXISTS expense_expected_on_index ON expense(expected_on)")
-            statement.execute("CREATE INDEX IF NOT EXISTS expense_occurred_on_index ON expense(occurred_on)")
-            statement.execute("CREATE INDEX IF NOT EXISTS income_schedule_starts_month_index ON income_schedule(starts_month)")
-            statement.execute("CREATE INDEX IF NOT EXISTS income_override_budget_month_index ON income_override(budget_month)")
-        }
-    }
+    private fun incompatible(detail: String): IllegalStateException = IllegalStateException("Incompatible ledger database '$path'; $detail; expected a new Cofrinho schema")
 }

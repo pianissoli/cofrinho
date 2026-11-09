@@ -1,12 +1,12 @@
 package cofrinho.cli
 
-import cofrinho.finance.ExpenseStatus
+import cofrinho.finance.Expense
 import cofrinho.finance.IdentifierSource
 import cofrinho.finance.Ledger
 import cofrinho.finance.LedgerClock
-import cofrinho.finance.LedgerService
 import cofrinho.finance.PaymentMethod
 import java.nio.file.Files
+import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -23,21 +23,23 @@ private class TestIds : IdentifierSource {
 
 class JdbcLedgerStoreTest {
     @Test
-    fun plannedStateSurvivesStoreRestart() {
-        val directory = Files.createTempDirectory("cofrinho-store-")
-        val path = directory.resolve("ledger.sqlite")
-        JdbcLedgerStore(path).replace(Ledger("ledger", "BRL", 2))
-        LedgerService(JdbcLedgerStore(path), TestClock(), TestIds()).planExpense(100_00, "2026-10-28", PaymentMethod.DEBIT)
-        val expense = JdbcLedgerStore(path).read().expenses.single()
-        assertEquals(ExpenseStatus.PLANNED, expense.status)
-        assertEquals(PaymentMethod.DEBIT, expense.paymentMethod)
+    fun variableExpenseAndRecurringRowsSurviveStoreRestart() {
+        val path = Files.createTempDirectory("cofrinho-store-").resolve("ledger.sqlite")
+        val store = JdbcLedgerStore(path)
+        val ledger = Ledger("ledger", "BRL", 2, expenses = listOf(Expense("expense", 100_00, "2026-10-26", PaymentMethod.DEBIT)))
+        store.replace(ledger)
+        assertEquals(ledger, JdbcLedgerStore(path).read())
     }
 
     @Test
-    fun invalidStateIsRejectedBySqliteConstraint() {
-        val path = Files.createTempDirectory("cofrinho-constraint-").resolve("ledger.sqlite")
-        JdbcLedgerStore(path).replace(Ledger("ledger", "BRL", 2))
-        val store = JdbcLedgerStore(path)
-        assertFailsWith<Exception> { store.connection().createStatement().execute("INSERT INTO expense VALUES ('bad', 100, 'PLANNED', NULL, NULL, 'CREDIT', NULL)") }
+    fun oldDatabaseIsRejectedWithoutOpeningAsNewLedger() {
+        val path = Files.createTempDirectory("cofrinho-old-").resolve("ledger.sqlite")
+        DriverManager.getConnection("jdbc:sqlite:${path.toAbsolutePath()}").use { connection ->
+            connection.createStatement().use { statement -> statement.execute("CREATE TABLE expense(expense_id TEXT PRIMARY KEY, amount_minor INTEGER)") }
+        }
+        assertFailsWith<IllegalStateException> { JdbcLedgerStore(path) }
+        DriverManager.getConnection("jdbc:sqlite:${path.toAbsolutePath()}").use { connection ->
+            connection.createStatement().use { statement -> statement.executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_marker'").use { rows -> assertEquals(false, rows.next()) } }
+        }
     }
 }

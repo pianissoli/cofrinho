@@ -5,9 +5,9 @@ Offline-first personal budget ledger. The first release targets Android 16
 
 ## Current implementation
 
-- `shared/finance`: platform-neutral money, date, recurring-income, planned-
-  expense, and budget rules.
-- `shared/transfer`: versioned `.cofrinho` JSON snapshots and import validation.
+- `shared/finance`: platform-neutral money, date, recurring-income,
+  recurring-expense, variable-spending, and budget rules.
+- `shared/transfer`: format-2 `.cofrinho` JSON snapshots and import validation.
 - `shared/storage`: SQLDelight schema for the phone and desktop SQLite stores.
 - `apps/cli`: Linux-oriented Kotlin/JVM CLI with SQLite persistence, handoff,
   conflict choice, local backup policy, and a keyboard-driven Lanterna TUI
@@ -118,13 +118,11 @@ The release APK is `apps/android/build/outputs/apk/release/cofrinho-release.apk`
 The CLI launcher is named `cofrinho`; `:apps:cli:packageLinuxX64` writes its
 self-contained distribution to `apps/cli/build/package/cofrinho-linux-x86_64/`.
 
-This rename occurs before the first release. Earlier development installations
-have a different Android application ID and default storage paths. Export any
-development ledger before switching, then import it in Cofrinho. The portable
-JSON contract remains version 1, so existing snapshots remain readable. Existing
-CLI databases can be opened using `--db /path/to/existing.sqlite`. Existing
-signing keys must be reused; the signing guide explains how to preserve their
-identity while changing file and alias labels.
+This release deliberately invalidates earlier development databases and format-1
+exports. Create a new ledger and re-enter its income, recurring expenses, and
+variable expenses; old files are rejected without modification. Existing signing
+keys must be reused; the signing guide explains how to preserve their identity
+while changing file and alias labels.
 
 ## CLI examples
 
@@ -139,19 +137,17 @@ cofrinho --db ./ledger.sqlite
 cofrinho --help
 ./gradlew :apps:cli:run --args='setup --currency BRL'
 ./gradlew :apps:cli:run --args='income add --name Salary --amount 3000 --from 2026-10'
+./gradlew :apps:cli:run --args='recurring add --name Rent --amount 1000 --from 2026-10'
 ./gradlew :apps:cli:run --args='expense add --amount 42.90'
-./gradlew :apps:cli:run --args='expense plan --amount 1000 --expected-date 2026-10-28'
-./gradlew :apps:cli:run --args='expense record --id EXPENSE_ID --amount 950'
-./gradlew :apps:cli:run --args='expense reopen --id EXPENSE_ID --amount 1000 --expected-date 2026-11-02'
 ./gradlew :apps:cli:run --args='budget show --month 2026-10'
 ./gradlew :apps:cli:run --args='transfer export --file ./ledger.cofrinho'
 ./gradlew :apps:cli:run --args='backup list'
 ```
 
-Income recurrence is resolved when a month is queried. The CLI does not create
-rows merely because a month passed. A new expense without `--date` uses the
-machine's local date; planned-expense recording does the same for its actual
-date. Explicit dates survive edits and transfers.
+Income and recurring-expense schedules resolve when a month is queried. The CLI
+does not create rows merely because a month passed. A new variable expense
+without `--date` uses the machine's local date. Explicit dates survive edits and
+transfers.
 
 Import conflict choices are explicit: use `--use-import` to keep the incoming
 whole ledger, or `--keep-local` to leave the current ledger unchanged. Before

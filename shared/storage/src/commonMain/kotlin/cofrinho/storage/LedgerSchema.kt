@@ -8,5 +8,5 @@ package cofrinho.storage
  */
 object LedgerSchema {
     const val databaseName: String = "CofrinhoDatabase"
-    const val schemaVersion: Int = 2
+    const val schemaVersion: Int = 3
 }
