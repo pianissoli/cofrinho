@@ -20,7 +20,7 @@ class CofrinhoTuiTest {
     @Test
     fun setupAndKeyboardExpenseUseTodayAndCreditDefaults() = withTemporaryDirectory("cofrinho-tui-") { directory ->
         val database = directory.resolve("ledger.sqlite")
-        val terminal = RecordingTerminal(firstRunAndSaveKeys("10"))
+        val terminal = RecordingTerminal(setupAndSaveKeys("10"))
         CofrinhoTui(database, { terminal }, MutableClock("2026-11-03"), FakeBackupPort()).run()
         val expense = JdbcLedgerStore(database).read().expenses.single()
         assertEquals("2026-11-03", expense.occurredOn)
@@ -128,6 +128,7 @@ private fun character(value: Char): TerminalKey = TerminalKey(TerminalKeyKind.CH
 private fun tab(): TerminalKey = TerminalKey(TerminalKeyKind.TAB)
 private fun enter(): TerminalKey = TerminalKey(TerminalKeyKind.ENTER)
 private fun arrowRight(): TerminalKey = TerminalKey(TerminalKeyKind.RIGHT)
+private fun arrowLeft(): TerminalKey = TerminalKey(TerminalKeyKind.LEFT)
 
 private fun <T> withTemporaryDirectory(prefix: String, block: (Path) -> T): T {
     val directory = Files.createTempDirectory(prefix)
