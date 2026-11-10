@@ -118,6 +118,35 @@ The release APK is `apps/android/build/outputs/apk/release/cofrinho-release.apk`
 The CLI launcher is named `cofrinho`; `:apps:cli:packageLinuxX64` writes its
 self-contained distribution to `apps/cli/build/package/cofrinho-linux-x86_64/`.
 
+### Install or upgrade the Linux CLI
+
+Download the release archive, its `.sha256` file, `cofrinho-install_cli.py`,
+`cli_install_archive.py`, and both installer checksums from the GitHub release.
+Keep the two Python files together, verify the checksums, then run the installer
+with Python 3.11+:
+
+```bash
+sha256sum --check cofrinho-install_cli.py.sha256
+sha256sum --check cli_install_archive.py.sha256
+sha256sum --check cofrinho-v0.2.0-linux-x86_64.tar.gz.sha256
+python3 cofrinho-install_cli.py \
+  "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz"
+```
+
+The installer replaces only `~/.local/opt/cofrinho/` and the
+`~/.local/bin/cofrinho` symlink. It never opens, migrates, moves, or deletes
+the default ledger at `~/.local/share/cofrinho/`, its SQLite companions,
+backups, exports, or transfer state. To remove an explicitly known older
+program directory after verification, add `--retire-install PATH`; similarly
+named directories are never swept automatically. Use `--dry-run` to inspect a
+change first. If `~/.local/bin` is not on `PATH`, add it in your shell profile;
+the installer only prints the suggested command and does not edit shell files.
+
+The installer keeps a recovery record while switching versions and restores the
+previous executable if smoke testing fails. A preserved old database may still
+be incompatible with a newer schema; installation deliberately does not reset
+or rewrite it.
+
 This release deliberately invalidates earlier development databases and format-1
 exports. Create a new ledger and re-enter its income, recurring expenses, and
 variable expenses; old files are rejected without modification. Existing signing
@@ -155,8 +184,9 @@ replacement, the CLI creates a recoverable local backup.
 
 `budget show --json` emits exact labeled totals for machine consumers. Reports
 remain readable while a device is in handed-off read-only mode. Run all host
-tests with `./gradlew check`; Android document-picker and APK checks still need
-an Android SDK/device.
+tests with `./gradlew check` and the Python maintenance/installer tests with
+`python3 -m unittest discover -s scripts -p 'test_*.py'`; Android document-picker
+and APK checks still need an Android SDK/device.
 
 Backup restore requires an explicit `backup restore --file PATH --use-backup`
 confirmation and leaves the restored ledger in a recovery handoff state.

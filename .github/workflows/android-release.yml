@@ -57,6 +57,10 @@ jobs:
             cofrinho-linux-x86_64
           cd "$RUNNER_TEMP/cofrinho-release"
           sha256sum "$cli_archive" > "$cli_archive.sha256"
+          cp "$GITHUB_WORKSPACE/scripts/install_cli.py" "$RUNNER_TEMP/cofrinho-release/cofrinho-install_cli.py"
+          sha256sum cofrinho-install_cli.py > cofrinho-install_cli.py.sha256
+          cp "$GITHUB_WORKSPACE/scripts/cli_install_archive.py" "$RUNNER_TEMP/cofrinho-release/cli_install_archive.py"
+          sha256sum cli_install_archive.py > cli_install_archive.py.sha256
 
       - name: Smoke test CLI archive without system Java
         run: |
@@ -107,6 +111,16 @@ jobs:
           "$cli" --db "$tui_db" budget show --month 2026-11 --json > "$RUNNER_TEMP/cofrinho-cli-smoke/tui.json"
           jq --exit-status '.spent == "10.00" and .recurring == "100.00" and .available == "2890.00" and .budget == "3000.00"' \
             "$RUNNER_TEMP/cofrinho-cli-smoke/tui.json"
+
+      - name: Smoke test the standalone installer
+        run: |
+          install_home="$RUNNER_TEMP/cofrinho-install"
+          python3 scripts/install_cli.py \
+            "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME-linux-x86_64.tar.gz" \
+            --install-dir "$install_home/opt/cofrinho" \
+            --bin-dir "$install_home/bin"
+          "$install_home/bin/cofrinho" --help
+          test -L "$install_home/bin/cofrinho"
 
       - name: Sign release APK
         env:
@@ -178,6 +192,10 @@ jobs:
             "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME.apk.sha256" \
             "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME-linux-x86_64.tar.gz" \
             "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME-linux-x86_64.tar.gz.sha256" \
+            "$RUNNER_TEMP/cofrinho-release/cofrinho-install_cli.py" \
+            "$RUNNER_TEMP/cofrinho-release/cofrinho-install_cli.py.sha256" \
+            "$RUNNER_TEMP/cofrinho-release/cli_install_archive.py" \
+            "$RUNNER_TEMP/cofrinho-release/cli_install_archive.py.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "Cofrinho $GITHUB_REF_NAME" \

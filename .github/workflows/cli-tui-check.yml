@@ -41,10 +41,22 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/cofrinho-tui-smoke/extracted package"
           tar -C apps/cli/build/package \
-            -czf "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-cli.tar.gz" \
+            -czf "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-v0.0.0-linux-x86_64.tar.gz" \
             cofrinho-linux-x86_64
-          tar -xzf "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-cli.tar.gz" \
+          sha256sum "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-v0.0.0-linux-x86_64.tar.gz" > \
+            "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-v0.0.0-linux-x86_64.tar.gz.sha256"
+          tar -xzf "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-v0.0.0-linux-x86_64.tar.gz" \
             -C "$RUNNER_TEMP/cofrinho-tui-smoke/extracted package"
+
+      - name: Install packaged CLI in an isolated home
+        run: |
+          install_home="$RUNNER_TEMP/cofrinho-installer-smoke"
+          python3 scripts/install_cli.py \
+            "$RUNNER_TEMP/cofrinho-tui-smoke/cofrinho-v0.0.0-linux-x86_64.tar.gz" \
+            --install-dir "$install_home/opt/cofrinho" \
+            --bin-dir "$install_home/bin"
+          "$install_home/bin/cofrinho" --help
+          test -L "$install_home/bin/cofrinho"
 
       - name: Run packaged CLI and TUI smoke tests
         run: |

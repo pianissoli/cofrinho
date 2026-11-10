@@ -3,12 +3,15 @@
 GitHub Actions builds, tests, signs, packages, and publishes the Android APK and
 Linux x86_64 CLI on GitHub's Linux runner using the repository's Dockerfile. The
 computer used to push a release tag does not need Java, Gradle, the Android SDK,
-or a local build.
+or a local build. Each release also publishes a self-contained Python installer
+and checksum for replacing an existing per-user CLI installation.
 
 The workflow is [Android release](../../.github/workflows/android-release.yml).
 It runs when a tag such as `v0.1.0` is pushed. It publishes the APK, its SHA-256
 checksum, the self-contained CLI archive, and its checksum as GitHub Release
-assets after tests and verification pass.
+assets after tests and verification pass. The assets `cofrinho-install_cli.py`,
+`cli_install_archive.py`, and their checksums are the standalone installer;
+keep both Python files together.
 
 ## Configure the existing signing key once
 
@@ -114,6 +117,53 @@ or newer. Later APKs install as updates when the application ID and signing key
 match and `versionCode` increases. Earlier development installations with a
 different application ID require exporting and importing their ledger.
 
+### Install the Linux CLI
+
+On Linux x86_64, download the CLI archive and its checksum, plus
+`cofrinho-install_cli.py`, `cli_install_archive.py`, and their checksums. Python 3.11 or newer is the only
+host requirement; Java, Gradle, Docker, and root access are not needed. Verify
+the files before execution:
+
+```bash
+sha256sum --check cofrinho-install_cli.py.sha256
+sha256sum --check cli_install_archive.py.sha256
+sha256sum --check cofrinho-v0.2.0-linux-x86_64.tar.gz.sha256
+python3 cofrinho-install_cli.py \
+  "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz"
+```
+
+The default install tree is `~/.local/opt/cofrinho/` and the command is the
+symlink `~/.local/bin/cofrinho`. An update stages and validates the complete
+distribution, tests `bin/cofrinho --help` with an invalid `JAVA_HOME` (so the
+bundled runtime is exercised), switches the command, and removes only the
+validated previous program tree. It never accesses the ledger at
+`~/.local/share/cofrinho/`, SQLite `-wal`/`-shm`/journal/lock companions,
+backups, exports, or transfer state. This preserves bytes even when an older
+database is intentionally incompatible with the current schema.
+
+Preview a change without extraction or execution:
+
+```bash
+python3 cofrinho-install_cli.py \
+  "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz" --dry-run
+```
+
+If a previous manual release remains in a version-named directory, retire only
+that exact validated path after the new installation succeeds:
+
+```bash
+python3 cofrinho-install_cli.py \
+  "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz" \
+  --retire-install "$HOME/.local/opt/cofrinho-v0.1.2"
+```
+
+Use `--install-dir PATH` and `--bin-dir PATH` for a different per-user layout.
+The installer does not edit shell startup files; add `~/.local/bin` to `PATH`
+when it prints that suggestion. If activation or smoke testing fails, the
+previous distribution and command link are restored. If a cleanup permission
+error remains, rerun the same command; recovery metadata names the exact old
+paths still pending.
+
 ## What the workflow does
 
 1. Checks out the version tag and validates its format.
@@ -127,7 +177,7 @@ different application ID require exporting and importing their ledger.
 7. Deletes the temporary keystore even if signing fails.
 8. Checks that the APK version matches the tag and verifies its signature with
    `apksigner`, printing the public certificate fingerprint for review.
-9. Publishes the signed APK, CLI archive, and both checksums to GitHub Releases.
+9. Publishes the signed APK, CLI archive, installer, and all four checksums to GitHub Releases.
 
 The keystore is never copied into the Docker image. Signing passwords enter
 only the signing container through environment variables; the workflow does
