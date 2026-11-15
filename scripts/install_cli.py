@@ -27,6 +27,7 @@ MAX_MEMBERS = 100_000
 MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_SMOKE_SECONDS = 20
 ARCHIVE_PATTERN = re.compile(r"^cofrinho-(v[0-9]+\.[0-9]+\.[0-9]+)-linux-x86_64\.tar\.gz$")
+VERSIONED_INSTALL_PATTERN = re.compile(r"^cofrinho-v([0-9]+)\.([0-9]+)\.([0-9]+)$")
 CHECKSUM_PATTERN = re.compile(r"^([0-9a-fA-F]{64})\s+\*?(.+)$")
 
 
@@ -366,6 +367,27 @@ def _validate_existing(path: Path) -> None:
         _validate_distribution(path)
 
 
+def _latest_versioned_install(install_dir: Path) -> Path | None:
+    if not install_dir.parent.is_dir():
+        return None
+    candidates: list[tuple[tuple[int, int, int], Path]] = []
+    for child in install_dir.parent.iterdir():
+        match = VERSIONED_INSTALL_PATTERN.fullmatch(child.name)
+        if match and child != install_dir and child.is_dir() and not child.is_symlink():
+            candidates.append((tuple(map(int, match.groups())), child))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item[0])[1]
+
+
+def _retirement_paths(options: InstallOptions) -> tuple[Path, ...]:
+    automatic = _latest_versioned_install(options.install_dir)
+    paths = list(options.retired)
+    if automatic is not None and automatic not in paths:
+        paths.append(automatic)
+    return tuple(paths)
+
+
 def _command_target(path: Path) -> str | None:
     if not path.exists() and not path.is_symlink():
         return None
@@ -388,6 +410,7 @@ def _validate_version(archive: Path) -> str:
 def _make_plan(options: InstallOptions) -> InstallPlan:
     _require_linux_x86_64()
     normalized = _validate_paths(options)
+    normalized = dataclasses.replace(normalized, retired=_retirement_paths(normalized))
     checksum = _resolved(normalized.checksum or Path(f"{normalized.archive}.sha256"))
     digest = _verify_checksum(normalized.archive, checksum)
     members = _validate_archive(normalized.archive)
@@ -676,7 +699,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--checksum", type=Path, help="checksum file; default is ARCHIVE.sha256")
     parser.add_argument("--install-dir", type=Path, default=Path.home() / ".local" / "opt" / "cofrinho")
     parser.add_argument("--bin-dir", type=Path, default=Path.home() / ".local" / "bin")
-    parser.add_argument("--retire-install", action="append", type=Path, default=[], help="exact old distribution path to remove after verification")
+    parser.add_argument("--retire-install", action="append", type=Path, default=[], help="additional exact old distribution path; newest versioned install is retired automatically")
     parser.add_argument("--dry-run", action="store_true", help="validate and print changes without changing files or running the candidate")
     return parser
 

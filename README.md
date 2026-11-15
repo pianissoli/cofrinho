@@ -131,13 +131,15 @@ python3 cofrinho-install_cli.py \
   "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz"
 ```
 
-The installer replaces only `~/.local/opt/cofrinho/` and the
-`~/.local/bin/cofrinho` symlink. It never opens, migrates, moves, or deletes
+The installer uses `~/.local/opt/cofrinho/` and the `~/.local/bin/cofrinho`
+symlink automatically. It replaces the active distribution and retires the
+newest validated `~/.local/opt/cofrinho-vMAJOR.MINOR.PATCH/` directory. It
+never opens, migrates, moves, or deletes
 the default ledger at `~/.local/share/cofrinho/`, its SQLite companions,
-backups, exports, or transfer state. To remove an explicitly known older
-program directory after verification, add `--retire-install PATH`; similarly
-named directories are never swept automatically. Use `--dry-run` to inspect a
-change first. If `~/.local/bin` is not on `PATH`, add it in your shell profile;
+backups, exports, or transfer state. Use `--retire-install PATH` only for an
+additional exact old directory. Similarly named directories are never swept
+automatically. Use `--dry-run` to inspect a change first. If `~/.local/bin` is
+not on `PATH`, add it in your shell profile;
 the installer only prints the suggested command and does not edit shell files.
 
 The installer keeps a recovery record while switching versions and restores the

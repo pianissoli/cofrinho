@@ -130,11 +130,12 @@ python3 cofrinho-install_cli.py \
   "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz"
 ```
 
-The default install tree is `~/.local/opt/cofrinho/` and the command is the
-symlink `~/.local/bin/cofrinho`. An update stages and validates the complete
-distribution, tests `bin/cofrinho --help` with an invalid `JAVA_HOME` (so the
-bundled runtime is exercised), switches the command, and removes only the
-validated previous program tree. It never accesses the ledger at
+The installer automatically uses `~/.local/opt/cofrinho/` and the command
+symlink `~/.local/bin/cofrinho`. It also retires the newest validated
+`~/.local/opt/cofrinho-vMAJOR.MINOR.PATCH/` directory. An update stages and
+validates the complete distribution, tests `bin/cofrinho --help` with an
+invalid `JAVA_HOME` (so the bundled runtime is exercised), switches the
+command, and removes only validated program trees. It never accesses the ledger at
 `~/.local/share/cofrinho/`, SQLite `-wal`/`-shm`/journal/lock companions,
 backups, exports, or transfer state. This preserves bytes even when an older
 database is intentionally incompatible with the current schema.
@@ -146,8 +147,8 @@ python3 cofrinho-install_cli.py \
   "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz" --dry-run
 ```
 
-If a previous manual release remains in a version-named directory, retire only
-that exact validated path after the new installation succeeds:
+Use `--retire-install PATH` only when an additional exact old directory must be
+retired:
 
 ```bash
 python3 cofrinho-install_cli.py \
@@ -155,7 +156,8 @@ python3 cofrinho-install_cli.py \
   --retire-install "$HOME/.local/opt/cofrinho-v0.1.2"
 ```
 
-Use `--install-dir PATH` and `--bin-dir PATH` for a different per-user layout.
+The normal command needs no path flags. Use `--install-dir PATH` and
+`--bin-dir PATH` only for an isolated or different per-user layout.
 The installer does not edit shell startup files; add `~/.local/bin` to `PATH`
 when it prints that suggestion. If activation or smoke testing fails, the
 previous distribution and command link are restored. If a cleanup permission

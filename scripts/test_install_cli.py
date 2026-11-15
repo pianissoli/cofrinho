@@ -104,6 +104,15 @@ class InstallerTests(unittest.TestCase):
         self.assertTrue(new.is_dir())
         self.assertFalse(old.exists())
 
+    def test_latest_versioned_install_is_retired_without_flag(self) -> None:
+        old_fixture = ReleaseFixture(self.root, "v0.1.2")
+        new_fixture = ReleaseFixture(self.root, "v0.2.0")
+        old = self.home / "opt" / "cofrinho-v0.1.2"
+        install(self.options(old_fixture.archive, install_dir=old))
+        install(self.options(new_fixture.archive))
+        self.assertTrue(self.install_dir.is_dir())
+        self.assertFalse(old.exists())
+
     def test_reinstall_is_idempotent(self) -> None:
         fixture = ReleaseFixture(self.root)
         install(self.options(fixture.archive))
