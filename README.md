@@ -121,13 +121,11 @@ self-contained distribution to `apps/cli/build/package/cofrinho-linux-x86_64/`.
 ### Install or upgrade the Linux CLI
 
 Download the release archive, its `.sha256` file, `cofrinho-install_cli.py`,
-`cli_install_archive.py`, and both installer checksums from the GitHub release.
-Keep the two Python files together, verify the checksums, then run the installer
-with Python 3.11+:
+and its checksum from the GitHub release. Verify the checksums, then run the
+single-file installer with Python 3.11+:
 
 ```bash
 sha256sum --check cofrinho-install_cli.py.sha256
-sha256sum --check cli_install_archive.py.sha256
 sha256sum --check cofrinho-v0.2.0-linux-x86_64.tar.gz.sha256
 python3 cofrinho-install_cli.py \
   "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz"

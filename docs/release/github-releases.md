@@ -9,9 +9,8 @@ and checksum for replacing an existing per-user CLI installation.
 The workflow is [Android release](../../.github/workflows/android-release.yml).
 It runs when a tag such as `v0.1.0` is pushed. It publishes the APK, its SHA-256
 checksum, the self-contained CLI archive, and its checksum as GitHub Release
-assets after tests and verification pass. The assets `cofrinho-install_cli.py`,
-`cli_install_archive.py`, and their checksums are the standalone installer;
-keep both Python files together.
+assets after tests and verification pass. The assets `cofrinho-install_cli.py`
+and its checksum are the standalone installer.
 
 ## Configure the existing signing key once
 
@@ -120,13 +119,12 @@ different application ID require exporting and importing their ledger.
 ### Install the Linux CLI
 
 On Linux x86_64, download the CLI archive and its checksum, plus
-`cofrinho-install_cli.py`, `cli_install_archive.py`, and their checksums. Python 3.11 or newer is the only
+`cofrinho-install_cli.py` and its checksum. Python 3.11 or newer is the only
 host requirement; Java, Gradle, Docker, and root access are not needed. Verify
 the files before execution:
 
 ```bash
 sha256sum --check cofrinho-install_cli.py.sha256
-sha256sum --check cli_install_archive.py.sha256
 sha256sum --check cofrinho-v0.2.0-linux-x86_64.tar.gz.sha256
 python3 cofrinho-install_cli.py \
   "$HOME/Downloads/cofrinho-v0.2.0-linux-x86_64.tar.gz"
@@ -177,7 +175,7 @@ paths still pending.
 7. Deletes the temporary keystore even if signing fails.
 8. Checks that the APK version matches the tag and verifies its signature with
    `apksigner`, printing the public certificate fingerprint for review.
-9. Publishes the signed APK, CLI archive, installer, and all four checksums to GitHub Releases.
+9. Publishes the signed APK, CLI archive, installer, and all three checksums to GitHub Releases.
 
 The keystore is never copied into the Docker image. Signing passwords enter
 only the signing container through environment variables; the workflow does

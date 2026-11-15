@@ -59,8 +59,6 @@ jobs:
           sha256sum "$cli_archive" > "$cli_archive.sha256"
           cp "$GITHUB_WORKSPACE/scripts/install_cli.py" "$RUNNER_TEMP/cofrinho-release/cofrinho-install_cli.py"
           sha256sum cofrinho-install_cli.py > cofrinho-install_cli.py.sha256
-          cp "$GITHUB_WORKSPACE/scripts/cli_install_archive.py" "$RUNNER_TEMP/cofrinho-release/cli_install_archive.py"
-          sha256sum cli_install_archive.py > cli_install_archive.py.sha256
 
       - name: Smoke test CLI archive without system Java
         run: |
@@ -194,8 +192,6 @@ jobs:
             "$RUNNER_TEMP/cofrinho-release/cofrinho-$GITHUB_REF_NAME-linux-x86_64.tar.gz.sha256" \
             "$RUNNER_TEMP/cofrinho-release/cofrinho-install_cli.py" \
             "$RUNNER_TEMP/cofrinho-release/cofrinho-install_cli.py.sha256" \
-            "$RUNNER_TEMP/cofrinho-release/cli_install_archive.py" \
-            "$RUNNER_TEMP/cofrinho-release/cli_install_archive.py.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "Cofrinho $GITHUB_REF_NAME" \
