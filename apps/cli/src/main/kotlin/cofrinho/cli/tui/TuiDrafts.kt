@@ -93,6 +93,7 @@ internal class RecurringDraft(
     var paymentTouched: Boolean = false
     var focus: Int = 0
     var error: String? = null
+    private var replaceInitialAmount: Boolean = initialAmount.isNotEmpty()
 
     val focusCount: Int get() = when (mode) {
         RecurringFormMode.ADD -> 6
@@ -122,6 +123,7 @@ internal class RecurringDraft(
     }
 
     fun backspace() {
+        if (focus == if (mode == RecurringFormMode.ADD) 1 else 0) replaceInitialAmount = false
         when (mode) {
             RecurringFormMode.ADD -> when (focus) {
                 0 -> name = name.dropLast(1)
@@ -141,6 +143,10 @@ internal class RecurringDraft(
     }
 
     private fun appendAmount(character: Char, scale: Int) {
+        if (replaceInitialAmount && character.isDigit()) {
+            amount = ""
+            replaceInitialAmount = false
+        }
         if (character.isDigit()) {
             val fraction = amount.substringAfter('.', "")
             if ('.' !in amount || fraction.length < scale) amount += character

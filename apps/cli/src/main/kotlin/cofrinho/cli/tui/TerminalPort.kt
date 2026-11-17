@@ -1,10 +1,12 @@
 package cofrinho.cli.tui
 
-import com.googlecode.lanterna.TerminalPosition
+import com.googlecode.lanterna.SGR
 import com.googlecode.lanterna.TerminalSize
 import com.googlecode.lanterna.TextColor
+import com.googlecode.lanterna.graphics.TextGraphics
 import com.googlecode.lanterna.input.KeyStroke
 import com.googlecode.lanterna.input.KeyType
+import com.googlecode.lanterna.screen.TerminalScreen
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory
 import com.googlecode.lanterna.terminal.Terminal
 
@@ -19,22 +21,21 @@ interface TerminalPort : AutoCloseable {
     fun stop()
     fun clear()
     fun size(): TerminalSize
-    fun write(column: Int, row: Int, value: String)
+    fun write(column: Int, row: Int, value: String, bold: Boolean = false)
     fun flush()
     fun readKey(): TerminalKey?
 }
 
 class LanternaTerminal(private val terminal: Terminal) : TerminalPort {
+    private val bufferedScreen: TerminalScreen = TerminalScreen(terminal)
+
     override fun start() {
-        terminal.enterPrivateMode()
-        terminal.setForegroundColor(TextColor.ANSI.WHITE)
-        terminal.setBackgroundColor(TextColor.ANSI.BLACK)
-        terminal.setCursorVisible(false)
+        bufferedScreen.startScreen()
+        bufferedScreen.cursorPosition = null
     }
 
     override fun stop() {
-        runCatching { terminal.setCursorVisible(true) }
-        runCatching { terminal.exitPrivateMode() }
+        runCatching { bufferedScreen.stopScreen() }
     }
 
     override fun close() {
@@ -42,18 +43,30 @@ class LanternaTerminal(private val terminal: Terminal) : TerminalPort {
         terminal.close()
     }
 
-    override fun clear() = terminal.clearScreen()
-
-    override fun size(): TerminalSize = terminal.terminalSize
-
-    override fun write(column: Int, row: Int, value: String) {
-        terminal.setCursorPosition(TerminalPosition(column, row))
-        terminal.putString(value)
+    override fun clear() {
+        // Filling only the back buffer lets refresh erase stale cells without a physical clear on every key.
+        frameGraphics().fill(' ')
     }
 
-    override fun flush() = terminal.flush()
+    override fun size(): TerminalSize {
+        bufferedScreen.doResizeIfNecessary()
+        return bufferedScreen.terminalSize
+    }
 
-    override fun readKey(): TerminalKey? = terminal.readInput()?.let(::mapKey)
+    override fun write(column: Int, row: Int, value: String, bold: Boolean) {
+        val graphics = frameGraphics()
+        if (bold) graphics.enableModifiers(SGR.BOLD)
+        graphics.putString(column, row, value)
+    }
+
+    private fun frameGraphics(): TextGraphics = bufferedScreen.newTextGraphics().apply {
+        foregroundColor = TextColor.ANSI.WHITE
+        backgroundColor = TextColor.ANSI.BLACK
+    }
+
+    override fun flush() = bufferedScreen.refresh()
+
+    override fun readKey(): TerminalKey? = bufferedScreen.readInput()?.let(::mapKey)
 
     private fun mapKey(key: KeyStroke): TerminalKey = when (key.keyType) {
         KeyType.Character -> TerminalKey(TerminalKeyKind.CHARACTER, key.character)

@@ -160,6 +160,14 @@ Use `cofrinho --help` for automation-safe help, or use an explicit command as
 shown below. The TUI needs a real terminal; pipes and CI jobs should use an
 explicit command instead.
 
+In the TUI, the selected row, field, or button is bold. Press `r` to manage
+recurring expenses and select an item with arrows or `j`/`k`. `o` overrides its
+amount for the displayed month (`0` skips that month); `x` clears that month's
+override and restores the schedule; `s` stops it from the displayed month onward,
+preserving previous months. In change/override forms, typing an amount replaces
+the prefilled value; Backspace edits the existing value. Use Tab to focus Save
+and Enter to apply the change. Success and read-only errors appear below the list.
+
 ```text
 cofrinho
 cofrinho --db ./ledger.sqlite
